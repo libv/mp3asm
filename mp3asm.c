@@ -27,16 +27,16 @@ static int verbose = 0;
 static int mp3_fd = -1;	/* mp3 input (file descriptor) */
 
 typedef struct tframe {
-	struct tframe *prev;
-	struct tframe *next;
-	uint32 head;		/* frame header */
-	uint8 *info;		/* side info, max. 34 bytes */
-	uint8 *data;		/* frame data */
-	int isize;		/* size of side info */
-	int dsize;		/* size of frame data (deinterleaved) */
-	int newfsize;
-	int newdsize;
-	int backref;
+  struct tframe *prev;
+  struct tframe *next;
+  uint32 head;		/* frame header */
+  uint8 *info;		/* side info, max. 34 bytes */
+  uint8 *data;		/* frame data */
+  int isize;		/* size of side info */
+  int dsize;		/* size of frame data (deinterleaved) */
+  int newfsize;
+  int newdsize;
+  int backref;
 } tframe;
 
 static tframe *firstframe = NULL;
@@ -291,76 +291,185 @@ transfer_frame_data (void)
 	return (1);
 }
 
-static int
-read_frame (tframe *f, int ignore)
+/* #include <limits.h>
+   
+   void bit_print(uint8 *a)
 {
-	int backref;
-	int locdsize;
-	uint8 info[34];
+ int k, i, n=8;
+ int mask = 1 << (n - 1);
+ for (k = 0; k <= 32; ++k) {
+ for (i = 1; i <= n; ++i) {
+ fprintf(stderr, "%c", ((a & mask) == 0) ? '0' : '1');
+a <<= 1;
+}
+fprintf (stderr, " ");
+}
+} */
 
-	if (verbose >= 3)
-		if (verbose >= 4 || !(framenum & 0x007f))
-			fprintf (stderr, "\r{%d} ", framenum);
-	do
-		switch ((f->head = read_head(badbytes))) {
-		case 0:
-			return (0); /* error */
-		case 2:
-			return (2); /* EOF */
-		}
-	while
-	    (!get_framedata(f->head, &f->isize, &locdsize)); /*|| locdsize <= 0); */
-        fprintf(stderr, "\rframe: %5d; locdsize: %4d", framenum, locdsize);
-	if (!ignore)
-		add_headerset (f->head);
-	if (f->isize > 0) {
-		if (ignore)
-			f->info = info;
-		else
-			check_pointer (f->info = (uint8 *) malloc(f->isize));
-		switch (wread(mp3_fd, f->info, f->isize)) {
-		case 1:
-			break;
-		case 2:
-			return (2); /* EOF */
-		default:
-			fprintf (stderr,
-			    "\n%s: error reading frame side info.", me);
-			return (0);
-		}
-		backref = ((unsigned) f->info[0] << 1)
-			| ((unsigned) f->info[1] >> 7);
+static int
+read_backref (tframe *f)
+{
+  int backref;
+  if (f->isize > 0) {
+    backref = ((unsigned) f->info[0] << 1) | ((unsigned) f->info[1] >> 7);
+  
+    if (backref >= 0 && backref < 512) {
+      f->backref = backref;
+      return (1); /* succes */
+    }
+  }
+  return (0); /* bad luck! */
+}
+
+static int
+write_backref (tframe *f)
+{
+  return (0);
+}
+
+static int
+read_datasize (tframe *f, frameinfo *fi)
+{
+  int gr0_ch0_size, gr0_ch1_size, gr1_ch0_size, gr1_ch1_size, grsize;
+  uint8 a;
+  int k, i, n=8;
+  int mask = 1 << (n - 1);
+  
+  if (f->isize > 0) {
+    if (fi->ver_maj == 1 && fi->layer == 3) {
+      /* calculating granule lenghts for stereo mp layer 3 */
+      /* stereo first cos its more common -> faster */
+      if (fi->channels == 2) {
+	/* this i found in the appendix of a l3 bitstreamprocessor doc */
+	gr0_ch0_size = ((lastf->info[2] & (unsigned) 15) << 8)
+	  | lastf->info[3];
+	gr0_ch1_size = ((lastf->info[9] & (unsigned) 1) << 11)
+	  | (lastf->info[10] << 3) |
+	  (lastf->info[11] >> 5); 
+	gr1_ch0_size = ((lastf->info[17] & (unsigned) 63) << 6) |
+	  (lastf->info[18] >> 2);
+	gr1_ch1_size = ((lastf->info[24] & (unsigned) 7) << 9) |
+	  (lastf->info[25] << 1) |
+	  (lastf->info[26] >> 7);
+      } else if (fi->channels == 1) {
+	/* single channel */
+	gr0_ch0_size = (((unsigned) lastf->info[2] & (unsigned) 31) << 7) |
+	  ((unsigned) lastf->info[3] >> 1);
+	gr0_ch1_size = 0;
+	gr1_ch0_size = (((unsigned) lastf->info[9] & (unsigned) 3) << 10) |
+	  ((unsigned) lastf->info[10] << 2) | ((unsigned) lastf->info[21] >> 6);
+	gr1_ch1_size = 0;
+      }
+      fprintf (stderr, "\nGranule 0 size = %4d, %4d\nGranule 1 size = %4d, %4d\n",
+	       gr0_ch0_size, gr0_ch1_size, gr1_ch0_size, gr1_ch1_size);
+      
+      for (k = 0; k < 32; ++k) {
+	a = lastf->info[k];
+	for (i = 1; i <= n; ++i) {
+	  fprintf(stderr, "%c", ((a & mask) == 0) ? '0' : '1');
+	  a <<= 1;
 	}
-	else {
-		f->isize = 0;
-		f->info = NULL;
-		backref = 0;
-	}
-	switch (wread(mp3_fd, databuf, locdsize)) {
-	case 1:
-		break;
-	case 2:
-		return (2); /* EOF */
-	default:
-		fprintf (stderr, "\n%s: error reading frame data.", me);
-		return (0);
-	}
-	if (lastf) {
-		lastf->dsize = (lastlocdsize + lastbackref) - backref;
-		if (lastf->dsize < 0)
-			lastf->dsize = 0;
-		if (!lastignore)
-			if (!transfer_frame_data())
-				return (0);
-	}
-	if (locdsize)
-		memmove (databufqueue, databufqueue + locdsize, 2560);
-	lastignore = ignore;
-	lastlocdsize = locdsize;
-	lastbackref = backref;
-	lastf = f;
-	framenum++;
-	return (1);
+	fprintf (stderr, " ");
+      }
+      
+      grsize = gr0_ch0_size + gr0_ch1_size + gr1_ch0_size + gr1_ch1_size;	
+      fprintf (stderr, "Total data size = %5d bytes and %1d bits\n", grsize / 8, grsize % 8);
+      f->dsize = grsize;
+      return (1); /* succes */
+      
+    }
+  }
+  else {
+    fprintf (stderr, "Warning: this aint an mpeg 1 layer 3 file!\n");  
+    return (0); /* no info, so no dsize either */
+  }
+}
+
+static int
+read_frame (tframe *f, frameinfo *fi, int ignore)
+{
+  int backref;
+  int locdsize;
+  uint8 info[34];
+  /*	int k, i, n=8;
+	int mask = 1 << (n - 1);
+	uint8 a; */
+  
+  if (verbose >= 3)
+    if (verbose >= 4 || !(framenum & 0x007f))
+      fprintf (stderr, "\r{%d} ", framenum);
+  do
+    switch ((f->head = read_head(badbytes))) {
+    case 0:
+      return (0); /* error */
+    case 2:
+      return (2); /* EOF */
+    }
+  while
+      (!get_framedata(f->head, &f->isize, &locdsize)); /*|| locdsize <= 0); */
+  fprintf(stderr, "\rframe: %5d; locdsize: %4d", framenum, locdsize);
+  if (!ignore)
+    add_headerset (f->head);
+  if (f->isize > 0) {
+    if (ignore)
+      f->info = info;
+    else
+      check_pointer (f->info = (uint8 *) malloc(f->isize));
+    switch (wread(mp3_fd, f->info, f->isize)) {
+    case 1:
+      break;
+    case 2:
+      return (2); /* EOF */
+    default:
+      fprintf (stderr,
+	       "\n%s: error reading frame side info.", me);
+      return (0);
+    }
+    backref = ((unsigned) f->info[0] << 1) | ((unsigned) f->info[1] >> 7);
+  }
+  else {
+    f->isize = 0;
+    f->info = NULL;
+    backref = 0;
+  }
+  
+  switch (wread(mp3_fd, databuf, locdsize)) {
+  case 1:
+    break;
+  case 2:
+    return (2); /* EOF */
+  default:
+    fprintf (stderr, "\n%s: error reading frame data.", me);
+    return (0);
+  }
+  
+  if (lastf) {
+    if (!read_datasize(lastf, fi)) {
+      lastf->dsize = lastlocdsize;
+    } else {
+      lastf->dsize = (lastlocdsize + lastbackref) - backref;
+      fprintf (stderr, "backref calculated dsize; %d\n", lastf->dsize);
+      
+      if (lastf->dbitsize < 0) {
+	lastf->dbitsize = 0;
+      } else if (lastf->dbitsize > 0) {
+      lastf->dsize = lastf->dbitsize / 8;
+      if (lastf->dbitsize % 8) 
+	lastf->dsize++;
+      }
+    }
+    if (!lastignore)
+      if (!transfer_frame_data())
+	return (0);
+  }
+  if (locdsize)
+    memmove (databufqueue, databufqueue + locdsize, 2560);
+  lastignore = ignore;
+  lastlocdsize = locdsize;
+  lastbackref = backref;
+  lastf = f;
+  framenum++;
+  return (1);
 }
 
 static int
@@ -375,66 +484,82 @@ read_last_frame (void)
 	return (1);
 }
 
+
+
 static void
 read_stream (char *name, int skip, int count)
 {
-	tframe *f, dummyf;
-	int result, start, end;
+  tframe *f, dummyf;
+  int result, start, end;
+  frameinfo fi;
+  
+  if ((mp3_fd = open(name, O_RDONLY, 0)) < 0) {
+    fprintf (stderr, "\n%s: ", me);
+    perror (name);
+    exit (EX_NOINPUT);
+  }
 
-	if ((mp3_fd = open(name, O_RDONLY, 0)) < 0) {
-		fprintf (stderr, "\n%s: ", me);
-		perror (name);
-		exit (EX_NOINPUT);
-	}
-	if (verbose >= 2)
-		fprintf (stderr, "Reading from %s ...\n", name);
-	result = 1;
-	while (result != 2 && skip--) {
-		if ((result = read_frame(&dummyf, 1)) == 2)
-			read_last_frame ();
-		else if (result != 1) {
-			fprintf (stderr, "%s: error reading frame.\n", name);
-			exit (EX_UNAVAILABLE);
-		}
-	}
-	start = framenum;
-	while (result != 2 && count--) {
-		check_pointer (f = malloc(sizeof(*f)));
-		memset (f, 0, sizeof(*f));
-		if ((result = read_frame(f, 0)) == 2) {
-			read_last_frame ();
-			free (f);
-			break;
-		}
-		else if (result != 1) {
-			fprintf (stderr, "\n%s: error reading frame.", name);
-			exit (EX_UNAVAILABLE);
-		}
-		if (!firstframe) {
-			firstframe = lastframe = f;
-			f->prev = NULL;
-		}
-		else {
-			f->prev = lastframe;
-			lastframe->next = f;
-			lastframe = f;
-		}
-	}
-	end = framenum;
-	reset_read_frame();
-	close (mp3_fd);
-	if (lastframe)
-		lastframe->next = NULL;
-	if (verbose >= 1) {
-		if (end - start)
-			fprintf (stderr,
-			    "\n\r%s:\t%d - %d %s(%d)", name,
-			    start, end - 1, result == 2 ? "[EOF] " : "",
-			    end - start);
-		else
-			fprintf (stderr,
-			    "\n\r%s:\tno frames within given range", name);
-         }
+  if (verbose >= 2)
+    fprintf (stderr, "Reading from %s ...\n", name);
+  result = 1;
+
+  while (result != 2 && skip--) {
+    if ((result = read_frame(&dummyf, NULL, 1)) == 2)
+      read_last_frame ();
+    else if (result != 1) {
+      fprintf (stderr, "%s: error reading frame.\n", name);
+      exit (EX_UNAVAILABLE);
+    }
+  }
+  start = framenum;
+  
+  while (result != 2 && count--) {
+    check_pointer (f = malloc(sizeof(*f)));
+    memset (f, 0, sizeof(*f));
+    if (firstframe) {
+      result = read_frame(f, &fi, 0);
+    } else {
+      result = read_frame(f, NULL, 0);
+    }
+    if (result == 2) {
+      read_last_frame ();
+      free (f);
+      break;
+    }
+    else if (result != 1) {
+      fprintf (stderr, "\n%s: error reading frame.", name);
+      exit (EX_UNAVAILABLE);
+    }
+    if (!firstframe) {
+      firstframe = lastframe = f;
+      f->prev = NULL;
+      if (!get_frameinfo(firstframe->head, &fi)) { /* needed for read_frame */
+      fprintf (stderr, "\n%s: not a valid MPEG audio stream.\n", me);
+      exit (EX_UNAVAILABLE);
+    }
+      
+    }
+    else {
+      f->prev = lastframe;
+      lastframe->next = f;
+      lastframe = f;
+    }
+  }
+  end = framenum;
+  reset_read_frame();
+  close (mp3_fd);
+  if (lastframe)
+    lastframe->next = NULL;
+  if (verbose >= 1) {
+    if (end - start)
+      fprintf (stderr,
+	       "\n\r%s:\t%d - %d %s(%d)", name,
+	       start, end - 1, result == 2 ? "[EOF] " : "",
+	       end - start);
+    else
+      fprintf (stderr,
+	       "\n\r%s:\tno frames within given range", name);
+  }
 }
 
 static void
