@@ -1,0 +1,224 @@
+
+README for mp3asm
+=================
+
+License:  Unlimited use for private purposes permitted, as long
+          as you don't remove author information, license and
+          disclamier.  Commercial / for-profit use requires my
+          explicit permission.
+
+Disclaimer:  This software is provided "as-is".  Whatever you
+             do with it, it's at your own risk.  I can not be
+             held liable for any damage resulting from this
+             software.  If you don't accept this, don't use the
+             software.
+
+
+IMPORTANT NOTES
+---------------
+
+This software is currently in alpha testing stage.  That means
+that it might not work as expected or described, and in fact it
+might not work at all.  Maybe it also causes your computer to
+explode and kill your cat.  See the disclaimer above.
+Of course, it is also possible that this software works fine.
+
+Also note that syntax and semantics of command line options,
+format of output messages and other things may change in future
+versions.  And they most probably _will_ change.
+
+
+COMPILING AND INSTALLING
+------------------------
+
+Edit the Makefile and have a look at the CFLAGS settings at the
+beginning.  Uncomment the one that is suitable for your system,
+and comment out all others.  The current alpha version has been
+tested with FreeBSD and Solaris only.
+
+When you're satisfied with the Makefile (and your operating
+system is satisfied with it, too), save it and type "make".
+Then copy the binary "mp3asm" to some place where it is easily
+accessible, for example ~/bin or /usr/local/bin.
+
+There is currently no manual page.
+
+
+USING
+-----
+
+Type "mp3asm" without arguments to see a short online help.
+Basically, mp3asm operates in three different modes:
+
+1. Verify mode
+
+   This mode can be used to check whether an mp3 file is ok or
+   not.  Just type:
+
+      mp3asm -v myfile.mp3
+
+   Any errors encountered will be printed to stderr, along with
+   other information.  Note that the absence of error messages
+   does _not_ mean that the file is guaranteed to be compliant
+   with the MPEG audio specification.
+
+   Do not specify more than one file in verify mode -- the
+   result will most probably not be what you expect.  (Tech
+   info:  mp3asm tries to read in all files at once, merge them
+   together internally and build a new MPEG stream from it,
+   which can cause errors even though the single files are
+   correct).
+
+   You should use the -v option to make mp3asm a bit more
+   verbose.
+
+2. Fix mode
+
+   This mode can be used to fix broken mp3 files.  It works
+   like verify mode, but in addition you specify an output file
+   using the -o option:
+
+      mp3asm -v broken.mp3 -o fixed.mp3
+
+   It will then read in the broken file, throw away everything
+   that looks broken, and writes the remaining data to the
+   specified output file.  Note that you can specify the same
+   name for input and output file, since mp3asm won't write
+   any output until all input files are read and analysed --
+   however, this is a bit risky, because you will lose the
+   original file, even if fixing the mp3 stream fails for some
+   reason.
+
+   You can specify "-" as output file to write to stdout.
+
+   Note that there may be still errors left inside the actual
+   frame data -- there is no way to find such errors without
+   completely decoding the audio stream, which is beyond the
+   scope of mp3asm.  In such a case you can use a decoder to
+   find out which frames are broken, for example:
+
+      mpg123 -ytvvv broken.mp3
+
+   The you can use the assemble mode of mp3asm to cut out the
+   broken frames, or replace them with other frames (although
+   the latter is very tricky).
+
+3. Assemble mode
+
+   Using this mode (which is where the name mp3asm comes from)
+   you can cut parts from mp3 files and re-assemble them to a
+   new mp3 stream.  The simplest thing you can do is to just
+   concatenate multiple mp3 files:
+
+      mp3asm file1.mp3 file2.mp3 file3.mp3 -o new.mp3
+
+   It will read the specified files, build a new valid mp3
+   stream and write it to the specified output file.  Note that
+   the input files should not be broken -- if they are, use the
+   fix mode of mp3asm on the individual files first.
+
+   Important note:  All the input files _must_ have compatible
+   frame parameters.  That means:  same bitrate, same sample
+   frequency, same stereo mode, same protection flags etc.
+   If those parameters are not the same, the result will not be
+   what you expect.  (Tech info:  mp3asm has to produce an mp3
+   stream with uniform frame parameters.  If the input frames
+   don't have the same parameters, mp3asm has to throw away
+   those frames which are in the minority, because it's not
+   possible to change parameters like bitrate, sample frequency
+   etc. without completely decoding/recoding the stream.  In
+   other words, mp3asm has to ignore the smallest of the input
+   files.)
+
+   If you don't want to use an entire mp3 file as input, you
+   can specify a part of it using the -s (skip) and -n (number)
+   options.  The smallest unit in a stream is a "frame", which
+   is about 1/40 second for 128 kbits, 44.1 kHz files (to be
+   exact: 32/1225 second).  Example:
+
+      mp3asm -s 10 -n 5 a.mp3 -s 20 -n 3 b.mp3 -o z.mp3
+
+   It will skip the first 10 frames in a.mp3, then read 5
+   frames, then skip the first 20 frames in b.mp3 and read
+   3 frames.  The output file z.mp3 will contain 8 frames:
+   frames 10 - 14 from a.mp3, and frames 20 - 22 from b.mp3
+   (the first frame is numbered 0).
+
+   The default is "-s 0" (don't skip frames) and "-n -1" (read
+   till end of file), i.e. files will be read completely by
+   default.  Note that the -s and -n options affect _all_ input
+   files specified after them.  Thus:
+
+      mp3asm -s 30 -n 5 a.mp3 b.mp3 c.mp3 -o z.mp3
+
+   Will read frames 30 - 34 from a.mp3, b.mp3 and c.mp3, so the
+   output file z.mp3 will contain 15 frames.  Another example:
+
+      mp3asm a.mp3 -s 5000 a.mp3 -o z.mp3
+
+   This will read the complete file a.mp3, then append the
+   ending (starting at frame 5000 in this case), so the frames
+   from 5000 to the end will occur twice in succession in the
+   output file z.mp3.
+
+   Hint:  mpg123 also has options to skip frames (-k) and to
+   decode only a limited number of frames (-n), so you can use
+   it to find the exact position for extracting frames with
+   mp3asm.  If you make mpg123 more verbose (-vvv should be
+   sufficient), it also displays the current frame number while
+   playing -- however, do not use the buffer option (-b) in
+   this case, because the displayed frame numbers will be
+   inaccurate.
+
+
+OPTIONS
+-------
+
+The -s and -n options have already been described in the
+section "assemble mode", see above.
+
+-o outputfile
+
+   Use this option to specify the output file name.  You can
+   also specify a dash ("-o -") to write to standard output.
+   The position of the -o option does not matter.  If no -o
+   option is used, no output file will be produced.
+
+-v
+
+   Increase the verbosity level.  The default level is 0 (which
+   means to stay silent except for errors).  Every time you use
+   The -v option, the verbosity level is increased by 1.  The
+   highest useful level is probably 3 (-vvv), which causes
+   mp3asm to explain in more detail what it is currently doing.
+   Level 4 or more can produce a whole lot of mostly irrelevant
+   information, which is normally useless (and might be even
+   confusing).
+
+
+REFERENCES
+----------
+
+mpg123 is a free, portable MPEG audio player/decoder for Unix.
+For more information, visit the following web page, which also
+contains a link to the latest version of mp3asm:
+
+   http://mpg.123.org/
+
+If you are interested in technical details about MPEG audio
+files or MPEG compression in general, please refer to the MPEG
+standard documents:
+
+   IS11172-3 (MPEG 1.0)
+   IS13818-3 (MPEG 2.0)
+
+They are published by the International Standards Organization
+and can be ordered from your local ISO representation.  They
+might also be available from larger libraries.  Note that I
+don't have the time to answer technical questions related to
+the ISO documents.
+
+
+5-Oct-1997
+Oliver Fromme  <olli@fromme.com>
+
