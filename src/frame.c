@@ -49,20 +49,20 @@ extern void *tcalloc (int n, size_t size);
 extern void print_log (int verb);
 extern void print_all (int verb);
 extern buffer_t *init_buf (int size);
-extern int read_buf (buffer_t *buffer, guint8 *data, int offset, int count);
+extern int read_buf (buffer_t *buffer, unsigned char *data, int offset, int count);
 extern int rem_buf (buffer_t *buffer, int count);
 extern int cut_buf (buffer_t *buffera, buffer_t *bufferb, int count);
-extern int write_buf (guint8 *data, buffer_t *buffer, int count);
+extern int write_buf (unsigned char *data, buffer_t *buffer, int count);
 extern int write_file_from_buf (buffer_t *buffer, FILE *file, int count);
 extern int print_buf (buffer_t *buffer, int count);
-extern int print_data (guint8 *data, int count);
+extern int print_data (unsigned char *data, int count);
 
 /*
- * isheader: checks wether a given guint32 is a valid header.
+ * isheader: 
  *
  */
 static int
-isheader (guint8 head[4])
+isheader (unsigned char head[4])
 {
   if ((head[0] == 0xff) && ((head[1] & 0xe0) != 0xe0))
     { 
@@ -102,7 +102,7 @@ isheader (guint8 head[4])
  *             takes into account bitrate/mode def/padding
  */
 static int
-samestream (guint8 head1[4], guint8 head2[4])
+samestream (unsigned char head1[4], unsigned char head2[4])
 {
   if ((head1[1] == head2[1]) && ((head1[2] & 0x0c) == (head2[2] & 0x0c)) && ((head1[3] & 0xc3) == (head2[3] & 0xc3)))
     return (1);
@@ -424,13 +424,13 @@ read_frame (stream_t *stream, buffer_t *filebuf, buffer_t *databuf)
 	}
 
       frame->dsize = frame->hsize - 4; /* paddin at layer 1/2 = padded null */
-      frame->data = tmalloc(frame->dsize * sizeof(guint8));
+      frame->data = tmalloc(frame->dsize * sizeof(unsigned char));
       read_buf(filebuf, frame->data, 4, frame->dsize);
       rem_buf(filebuf, frame->hsize);
     }
   else
     {
-      frame->info = tmalloc(stream->isize * sizeof(guint8));
+      frame->info = tmalloc(stream->isize * sizeof(unsigned char));
       switch (read_buf (filebuf, frame->info, 4 + temp, stream->isize))
 	{
 	case -1:
@@ -498,7 +498,7 @@ read_frame (stream_t *stream, buffer_t *filebuf, buffer_t *databuf)
 	}
       if (frame->dsize)
 	{
-	  frame->data = tmalloc(frame->dsize * sizeof(guint8));
+	  frame->data = tmalloc(frame->dsize * sizeof(unsigned char));
 	  read_buf(databuf, frame->data, 0, frame->dsize);
 	  rem_buf(databuf, frame->dsize);
 	}
@@ -655,7 +655,7 @@ write_emptyframe (stream_t *stream)
   for (i = 0; i < 4; i++)
     frame->head[i] = frame->next->head[i];
   frame->backref = 0;
-  frame->info = tcalloc (stream->isize, sizeof (guint8));
+  frame->info = tcalloc (stream->isize, sizeof (unsigned char));
 
   if (stream->maj_version == 1)
     {

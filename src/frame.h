@@ -29,9 +29,9 @@ typedef struct frame_t
   struct frame_t *prev;
   struct frame_t *next;
 
-  guint8 head[4];      /* frame header */
-  guint8 *info;      /* side info, max. 34 bytes */
-  guint8 *data;      /* frame data */
+  unsigned char head[4];      /* frame header */
+  unsigned char *info;      /* side info, max. 34 bytes */
+  unsigned char *data;      /* frame data */
 
   int hsize;         /* space between two headers */
   int dsize;         /* size of frame data (deinterleaved) */

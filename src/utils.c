@@ -239,7 +239,7 @@ init_buf (int size)
   buffer_t *buffer;
 
   buffer = (buffer_t *)malloc(sizeof(buffer_t));
-  buffer->data = (guint8 *)malloc(size * sizeof(guint8));
+  buffer->data = (unsigned char *)malloc(size * sizeof(unsigned char));
 
   buffer->size = size;
   buffer->used = 0;
@@ -281,14 +281,14 @@ int
 fill_buf_from_file (buffer_t *buffer, FILE *file)
 {
   int readb, count, count1;
-  guint8 *ptr;
+  unsigned char *ptr;
   
   count = (buffer->size - buffer->used);
 
   while (count)
     {
       count1 = ((buffer->end + count) > buffer->size) ? (buffer->size - buffer->end) : count;
-      ptr = (guint8 *)(buffer->data + buffer->end);
+      ptr = (unsigned char *)(buffer->data + buffer->end);
       
       while (count1)
 	{
@@ -333,15 +333,15 @@ fill_buf_from_file (buffer_t *buffer, FILE *file)
 }
 
 /*
- * read_buf: reads from a buffer into a guint8 pointer.
+ * read_buf: reads from a buffer into a pointer.
  *           returns 0 on eob, 1 success, -1 read error.
  */
 
 int
-read_buf (buffer_t *buffer, guint8 *data, int offset, int count)
+read_buf (buffer_t *buffer, unsigned char *data, int offset, int count)
 {
   int location, count1;
-  guint8 *ptr;
+  unsigned char  *ptr;
 
   if ((offset + count) > (buffer->used))
     {
@@ -356,14 +356,14 @@ read_buf (buffer_t *buffer, guint8 *data, int offset, int count)
   while (count)
     {
       count1 = ((location + count) > buffer->size) ? (buffer->size - location) : count;
-      ptr =(guint8 *)(buffer->data + location);
+      ptr =(unsigned char *)(buffer->data + location);
       
 #ifdef DEBUG_BUFFER
       sprintf (log.buf, "BUFFER: Reading %d from buffer (@%d from %d/%d)\n", count1, location, buffer->used, buffer->size);
       print_log (10);
 #endif /* DEBUG_BUFFER */  
       
-      if (data != memcpy(data , ptr, count1 * sizeof(guint8)))
+      if (data != memcpy(data , ptr, count1 * sizeof(unsigned char)))
 	{
 	  sprintf (log.buf, "%s: Error reading from buffer.\n", me);
 	  print_all (-1);
@@ -458,7 +458,7 @@ cut_buf (buffer_t *buffera, buffer_t *bufferb, int count)
       print_log (10);
 #endif /* DEBUG_BUFFER */      
       
-      memcpy(bufferb->data + bufferb->end, buffera->data + buffera->begin, count1 * sizeof(guint8));
+      memcpy(bufferb->data + bufferb->end, buffera->data + buffera->begin, count1 * sizeof(unsigned char));
       
       count -= count1;
       
@@ -488,7 +488,7 @@ cut_buf (buffer_t *buffera, buffer_t *bufferb, int count)
  *
  */
 int
-write_buf (guint8 *data, buffer_t *buffer, int count)
+write_buf (unsigned char *data, buffer_t *buffer, int count)
 {
   int count1, temp = 0;
 
@@ -511,7 +511,7 @@ write_buf (guint8 *data, buffer_t *buffer, int count)
       print_log (10);
 #endif /* DEBUG_BUFFER */      
       
-      memcpy (buffer->data + buffer->end, data + temp, count1 * sizeof(guint8));
+      memcpy (buffer->data + buffer->end, data + temp, count1 * sizeof(unsigned char));
       
       count -= count1;
       temp += count1;
@@ -539,7 +539,7 @@ int
 print_buf (buffer_t *buffer, int count)
 {
   int count1;
-  guint8 *ptr;
+  unsigned char *ptr;
 
   ptr = buffer->data + buffer->begin;
   count1 = ((buffer->begin + count) > buffer->size) ? (buffer->size - buffer->begin) : count;
@@ -571,17 +571,17 @@ int
 write_file_from_buf (buffer_t *buffer, FILE *file, int count)
 {
   int writeb, count1;
-  guint8 *ptr;
+  unsigned char *ptr;
   
   while (count)
     {
       count1 = ((buffer->begin + count) > buffer->size) ? (buffer->size - buffer->begin) : count;
       
-      ptr = (guint8 *)(buffer->data + buffer->begin);
+      ptr = (unsigned char *)(buffer->data + buffer->begin);
       
       while (count1)
 	{
-	  if ((writeb = fwrite(ptr, sizeof(guint8), count1, file)) < 0)
+	  if ((writeb = fwrite(ptr, sizeof(unsigned char), count1, file)) < 0)
 	    {
 	      if (errno == EINTR)
 		continue;
@@ -622,9 +622,9 @@ write_file_from_buf (buffer_t *buffer, FILE *file, int count)
  *
  */
 int
-print_data (guint8 *data, int count)
+print_data (unsigned char *data, int count)
 {
-  guint8 *ptr;
+  unsigned char *ptr;
 
   ptr = data;
 

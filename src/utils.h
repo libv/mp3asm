@@ -26,7 +26,7 @@
 
 typedef struct buffer_t
 {
-  guint8 *data;
+  unsigned char *data;
   int size;
   int used;
   int begin;

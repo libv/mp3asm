@@ -4,8 +4,9 @@ Changelog for mp3asm:
 
 0.1.1:
 ------
+	- removed dependency of glib, guint8 = unsigned char
+	- implementing the standard configure
 Todo:
- - remove dependecy of glib
  - add gnu configure
  - implement callbacks for parsing
  - implement & test vbr
