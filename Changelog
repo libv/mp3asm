@@ -38,7 +38,7 @@ Todo:
 0.1.0:
 ------
 	- Parsing commandline should be somewhat ok
-	- The cyclic buffer implementation seems to be workling nicely
+	- The circular buffer implementation seems to be workling nicely
 	- layer 3 streams seem to load.
 	- layer 2 too :)
 	- writing stream works np
@@ -56,5 +56,5 @@ So this would be a fair judgement:
  
 Almost working, counts on an empty frame to exist in the stream.
 Pretty nifty, too bad it was almost forgotten.
-Prolly, no not prolly, it just plainly is the most usefull mp3 tool ive
+Prolly, no not prolly, it just plainly is the most useful mp3 tool ive
 ever seen.
