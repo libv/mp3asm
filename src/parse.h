@@ -24,6 +24,7 @@
 
 #ifndef HAVE_PARSE_H
 #define HAVE_PARSE_H
+#include "stream.h"
 
 typedef struct input_t
 {
@@ -34,13 +35,14 @@ typedef struct input_t
   long readframes;
   long endframe;
   int use_id3;
-  void *stream;
+  stream_t *stream;
 } input_t;
 
 extern input_t **input;
 
 typedef struct output_t
 {
+  void *stream;
   char *name; 
   FILE *file;
   

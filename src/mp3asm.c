@@ -24,14 +24,15 @@
 #include "mp3asm.h"
 #include "parse.h"
 #include "utils.h"
-#include "stream.h"
 
 /* stream.c */
 
 extern stream_t *read_stream (FILE *file);
 extern void print_stream_inf(stream_t *stream, char *name);
 extern int write_stream (stream_t *stream, char **filename);
-extern int process_stream (stream_t *stream, long skipframes, long readframes, long lastframe);
+extern int process_input (stream_t *stream, long startframe, long endframe);
+extern int process_output (stream_t *stream);
+extern void merge_streams (stream_t *streama, stream_t *streamb);
 
 /* utils.c */
 
@@ -94,7 +95,7 @@ new_input (void)
 void
 init_global (char *progname)
 {
-  me = strcpy((char *)tmalloc(strlen(progname)), progname);
+  me = strcpy((char *)tmalloc(strlen(progname) + 1), progname);
 
   log.name = NULL;
   log.file = NULL;
@@ -108,6 +109,7 @@ init_global (char *progname)
   output = (output_t *)tmalloc(sizeof(output_t));
   output->name = NULL;
   output->file = NULL;
+  output->stream = NULL;
   output->write_crc = 0;  /* not used yet */
 }
 
@@ -135,8 +137,60 @@ open_inputs (void)
       fclose (input[i]->file);
       input[i]->file = NULL;
 
-      process_stream (input[i]->stream, input[i]->startframe, input[i]->readframes, input[i]->endframe);
+      process_input (input[i]->stream, input[i]->startframe, input[i]->endframe);
     }
+}
+/*
+ * open_inputs: opens & reads the inputstreams
+ *
+ */
+
+static void
+write_output (void)
+{
+  int i;
+
+  if (!inputs)
+    {
+      sprintf (log.buf, "Please provide valid inputfiles...\n");
+      print_std (-1);
+      exit (EX_USAGE);
+    }
+    
+  for (i = 1; i < inputs; ++i)
+    {
+      /*fprintf (stderr, "%d\n", i);*/
+      if (input[i]->use_id3)
+	{
+	  if (input[i]->stream->tag)
+	    {
+	      input[0]->stream->tag = input[i]->stream->tag;
+	      input[i]->stream->tag = NULL;
+	    }
+	  else
+	    {
+	      sprintf (log.buf, "Unable to use a non-existent id3 tag.\n");
+	      print_std (0);
+	    }
+	}
+      else
+	free (input[i]->stream->tag);
+    }
+  
+  output->stream = input[0]->stream;
+  input[0]->stream = NULL;
+
+  for (i = 1; i < inputs; ++i)
+    {
+      merge_streams (output->stream, input[i]->stream);
+      input[i]->stream = NULL;
+    }
+  free (input);
+  inputs = 0;
+  
+  process_output (output->stream);
+
+  write_stream (output->stream, &output->name);
 }
 
 /*
@@ -153,9 +207,10 @@ main(int argc, char *argv[])
   logopen ();
 
   open_inputs ();
+
   if (output->name)
-    write_stream (input[0]->stream, &output->name);
-  
+    write_output ();
+
   exit (EX_OK);
 }
 

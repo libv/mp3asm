@@ -78,7 +78,6 @@ static int
 incr_verbosity (char *arg)
 {
   verbosity++;
-  fprintf (stderr, "verbosity: %d\n", verbosity);
   return (0);
 }
 
@@ -131,7 +130,7 @@ set_output (char *arg)
 {
   if (output->name)
     return (1);
-  output->name = strcpy (tmalloc (strlen (arg)), arg);
+  output->name = strcpy (tmalloc (strlen (arg) + 1), arg);
   return (0);
 }
 
@@ -150,7 +149,7 @@ use_log (char *arg)
 {
   if (log.name)
     return (1);
-  log.name = strcpy (tmalloc (strlen (arg)), arg); 
+  log.name = strcpy (tmalloc (strlen (arg) + 1), arg); 
   return (0);
 }
 
@@ -257,9 +256,11 @@ parse_argument (int argc, char *argv[])
 	}
       else /* input file */
 	{
-	  input[inputs - 1]->name = strcpy (tmalloc (strlen (argv[i])), argv[i]);
-	  sprintf (log.buf, "%d input: %s\n", inputs - 1, input[inputs - 1]->name);
-	  print_std (5);
+	  
+	  input[inputs - 1]->name = tmalloc (strlen (argv[i]) + 1);
+	   strcpy (input[inputs - 1]->name, argv[i]);
+	   /*sprintf (log.buf, "%d input: %s\n", inputs - 1, input[inputs - 1]->name);
+	     print_std (5);*/
 	  new_input ();
 	}
     }
@@ -274,9 +275,6 @@ static void
 check_options ()
 {
   int id3=0, i;
-
-  sprintf (log.buf, "inputs: %d\n", inputs);
-  print_std (1);
 
   for (i = 0; i < inputs; ++i)
     {
@@ -320,6 +318,12 @@ check_options ()
       print_std (-1);
       exit (EX_USAGE);
     }
+  /* else
+    {
+      sprintf (log.buf, "inputs: %d\n", inputs);
+      print_std (5);
+      }*/
+
   if (!info)
     {
       sprintf (log.buf, "%s: Program from Olli Fromme & _Death_.\n", me);

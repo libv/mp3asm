@@ -1,7 +1,9 @@
 Changelog for mp3asm:
 ---------------------
+
 Todo:
- - changing headers throughout the file
+ - flags for changing headers
+ - add/remove crc
  - fading
  - implement Xing vbr header
  - implement id3 v2
@@ -11,6 +13,12 @@ Todo:
 0.1.2: (22/03/01)
 ------
         - cleanin up process stream
+	- removed remove_dead_frames, remove_prev_frames,
+	  remove_next_frames
+	  they became obsolete due to process_frames
+	- writing merge streams
+	- unified headers implemented
+	- cleaned up output + a few bugs
 
 0.1.1: (19/03/01)
 ------

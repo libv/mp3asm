@@ -35,9 +35,9 @@ typedef struct stream_t
   float avkbps;
   int freq;
   int mode; /* 0 = stereo | 1 = joint stereo | 2 = dual chan | 3 = mono */
-  int crc;  /* idem */
+  int crc;  
   int private;
-  int copyrighted;
+  int copyright;
   int original;
   unsigned char *tag;
   

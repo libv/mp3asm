@@ -24,7 +24,6 @@
 #include "mp3asm.h"
 #include "utils.h"
 #include <unistd.h>
-#include <fcntl.h>
 #include <stdio.h>
 
 /*
@@ -118,9 +117,10 @@ print_all (int verb)
  *
  */
 FILE *
-mp3ropen(const char *name) /* infile */
+mp3ropen(char *name) /* infile */
 {
-  FILE *file = fopen(name, "r");
+  FILE *file = fopen (name, "r");
+
   if (!file)
     {
       sprintf(log.buf, "%s: Unable to read from %s.\n", me, name);
@@ -158,7 +158,7 @@ mp3wopen(char **name, int layer)
 	      exit (EX_CANTCREAT);
 	    }
 	  *po = 0;
-	  basename = strcpy (tmalloc (strlen (name2) * sizeof (char)), name2);
+	  basename = strcpy (tmalloc (strlen (name2) + 1), name2);
 	}
       if (count[2] == '9') /* I think 1000 files will sufise */
 	{

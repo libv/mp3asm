@@ -70,7 +70,7 @@ get_tag_v1 (stream_t *stream, buffer_t *buffer)
 int 
 write_tag_v1 (stream_t *stream, FILE *file)
 {
-  if (strlen (stream->tag) == 128)
+  if (stream->tag && (strlen (stream->tag) == 128))
     {
       if (fwrite(stream->tag, sizeof(unsigned char), 128, file) < 0)
 	{

@@ -48,9 +48,7 @@ extern int write_tag_v1 (stream_t *stream, buffer_t *buffer);
 
 extern void free_first_frame (stream_t *stream);
 extern int read_frame(stream_t *stream, buffer_t *filebuf, buffer_t *databuf);
-extern int remove_dead_frames (stream_t *stream);
-extern int remove_prev_frames (stream_t *stream, frame_t *frame, long count);
-extern int remove_next_frames (stream_t *stream, frame_t *frame, long count);
+extern int process_frames (stream_t *stream, long startframe, long endframe);
 extern int calc_backref (stream_t *stream);
 extern int write_frames (stream_t *stream, FILE *file); 
 
@@ -78,9 +76,9 @@ init_stream(void)
   stream->avkbps = 0;
   stream->mode = 0;
   stream->crc = 0;
-  stream->private = 0;
-  stream->copyrighted = 0;
-  stream->original = 0;
+  stream->private = -1;
+  stream->copyright = -1;
+  stream->original = -1;
   stream->count = -1;
   stream->tag = NULL;
 
@@ -155,10 +153,11 @@ read_stream (FILE *file)
     }
   free_buf (filebuf);
 
-  fprintf (stderr, "databuf used: %d\n", databuf->used);
+  /*fprintf (stderr, "databuf used: %d\n", databuf->used);
 
-  if (get_tag_v1 (stream, databuf))
-    fprintf (stderr, "the tag is: %s\n", stream->tag);
+    if (*/
+  get_tag_v1 (stream, databuf);
+     /*fprintf (stderr, "the tag is: %s\n", stream->tag);*/
 
   rem_buf (databuf, databuf->used);
   free_buf (databuf);
@@ -228,7 +227,7 @@ print_stream_inf(stream_t *stream, char *name)
     sprintf(log.buf, "not private, ");
   print_all (1);
   
-  if (stream->copyrighted) 
+  if (stream->copyright) 
     sprintf(log.buf, "copyrighted, ");
   else
     sprintf(log.buf, "not copyrighted, ");
@@ -248,61 +247,106 @@ print_stream_inf(stream_t *stream, char *name)
  * process_stream: 
  *
  */
-int
-process_stream (stream_t *stream, long skipframes, long lastframe)
+void
+process_input (stream_t *stream, long startframe, long endframe)
 {
-  /*  this function is optimised for skipframes || lastframe to equal 0
-   *  As this will very often be the case.
-   *  A gtk frontend will one day make it much easier to use & program
-   */
-
-  long count = 0;
-  frame_t *frame = stream->first;
-
-  if (skipframes)
+  if (startframe >= stream->count)
     {
-      if (skipframes >= stream->count)
-	{
-	  sprintf (log.buf, "Cannot skip %ld frames... No frames left to write.\n", skipframes);
-	  print_all (0);
-	  exit(EX_USAGE);
-	}
-      
-      while (frame)
-	{
-	  if (count == skipframes)
-	    {
-	      remove_prev_frames (stream, frame, count);
-	      break;
-	    }
-	  frame = frame->next;
-	  count++;
-	}
-    }  
-
-  if (lastframe)
+      sprintf (log.buf, "Cannot skip %ld frames... No frames left to write.\n", startframe);
+      print_all (0);
+      exit(EX_USAGE);
+    }
+  if (endframe > stream->count)
     {
-      if (lastframe > stream->count)
-	{
-	  sprintf (log.buf, "File has less frames (%ld) than specified (%ld)... Reading all the way to the end.\n", stream->count, lastframe);
-	  print_all (0);
-	}
-
-      while (frame)
-	{
-	  if (count == lastframe)
-	    {
-	      remove_next_frames (stream, frame, count);
-	      break;
-	    }
-	  frame = frame->next;
-	  count++;
-	}
-    }  
-
-  remove_dead_frames (stream);
+      sprintf (log.buf, "File has less frames (%ld) than specified (%ld)... Reading till end.\n", stream->count, endframe);
+      print_all (0);
+    }
   
-  return (1); /* succes */
+  process_frames (stream, startframe, endframe);
+}
+
+/*
+ * process_output: 
+ *
+ */
+
+void
+process_output (stream_t *stream)
+{
+  frame_t *frame = stream->first;
+  unsigned char head[2];
+
+  /* set private bit, ignore other values */
+  if (stream->private == 1 || stream->private == 0)
+    frame->head[2] &= stream->private | 0xfe;
+  if (stream->copyright == 1 || stream->copyright == 0)
+    frame->head[3] &= (stream->copyright << 3) | 0xf7;
+  if (stream->original == 1 || stream->original == 0)
+    frame->head[3] &= (stream->original << 2) | 0xfb; 
+  
+  head[0] = frame->head[2] & 0x0d;
+  head[1] = frame->head[3] & 0xcf;
+
+  while (frame->next)
+    {
+      frame = frame->next;
+      frame->head[2] = (frame->head[2] & 0xf2) | head[0];
+      frame->head[3] = (frame->head[3] & 0x30) | head[1];
+    }
+}
+
+/*
+ * merge_streams:
+ *
+ */
+void
+merge_streams (stream_t *streama, stream_t *streamb)
+{
+  if (streama->maj_version != streamb->maj_version)
+    {
+      sprintf (log.buf, "Incompatible streams: Cannot combine streams with different major versions.\n");
+      print_all (-1);
+      exit (EX_USAGE);
+    }
+  else if (streama->min_version != streamb->min_version)
+    {
+      sprintf (log.buf, "Incompatible streams: Cannot combine streams with different minor versions.\n");
+      print_all (-1);
+      exit (EX_USAGE);
+    }
+  else if (streama->layer != streamb->layer)
+    {
+      sprintf (log.buf, "Incompatible streams: Cannot combine streams that are not the same layer.\n");
+      print_all (-1);
+      exit (EX_USAGE);
+    }
+  else if (streama->freq != streamb->freq)
+     {
+      sprintf (log.buf, "Incompatible streams: Cannot combine streams with different frequencies.\n");
+      print_all (-1);
+      exit (EX_USAGE);
+    }
+  else if (streama->mode != streamb->mode)
+    {
+      sprintf (log.buf, "Incompatible streams: Cannot combine streams with different modes.\n");
+      print_all (-1);
+      exit (EX_USAGE);
+    }
+  
+  streamb->first->prev = streama->last;
+  streama->last->next = streamb->first;
+  streama->last = streamb->last;
+  streamb->first = streamb->last = NULL;
+
+  if (streama->cbr && (!streamb->cbr || (streama->avkbps != streamb->avkbps)))
+    {
+      streama->cbr = 0;
+      streama->avkbps = ((streama->avkbps * streama->count) + (streamb->avkbps * streamb->count)) / (streama->count + streamb->count);
+    }
+
+  streama->count += streamb->count;
+  free (streamb->tag);
+  free (streamb);
 }
 
 /*

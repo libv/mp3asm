@@ -42,16 +42,20 @@ into mp3asm and it will do it for u.
 an empty frame (only when needed) to the start of the stream in order to decently format
 the stream. This is a valid practice which all encoders do, i often see rips which have
 80+ empty frames. I believe this is done for id3v2, which has all the id3 frames burried
-inside the wasted space of a stream.
+inside the wasted space of a stream. Please be carefull with -v & -l, with
+verbosity >= 10 mp3asm generates huge logfiles.
+Most of the time this program should be used to remove ticks/blips or to
+remove lead in/outs that r annoying. Sometimes u get these bad rips with
+the mistery track followin after 5 mins of silence... that sort of stuff.
 
 State of the program:
 ---------------------
 
- It is able discard chosen frames from a stream and write them to a new file. There is no
-vbr support yet (thats first on the list) and id3 tags r currently thrown away. When this
-is implemented ill test for the validity of fading in/out by resetting the gain values.
-After that ill implement mpglib & alsa 0.9.0 support, and if im still in the mood ill
-build a petite gtk frontend for it.
+ It is able to discard chosen frames from a stream and write them to a new
+file or it can be used to make several streams into 1. I still have to
+test for the validity of fading in/out by writing the gain values. After
+that ill implement mpglib & alsa 0.9.0 support, and if im still in the
+mood ill build a petite gtk frontend for it.
 
 Installation:
 -------------

@@ -27,18 +27,18 @@
 #include "stream.h"
 
 
-#ifndef FRAME_DEBUG
+/*#ifndef FRAME_DEBUG
 #define FRAME_DEBUG
 #endif
-/*#ifndef SIDE_DEBUG
+#ifndef SIDE_DEBUG
 #define SIDE_DEBUG
 #endif
 #ifndef POINTER_DEBUG
 #define POINTER_DEBUG
-#endif*/
+#endif
 #ifndef WRITE_DEBUG
 #define WRITE_DEBUG
-#endif
+#endif*/
 
 #define FRAMEBUF_SIZE 5
 
@@ -70,31 +70,31 @@ isheader (unsigned char head[4])
   if ((head[0] == 0xff) && ((head[1] & 0xe0) != 0xe0))
     { 
       sprintf(log.buf, "%s: No syncbits found at the start of header %x%x%x%x.\n", me, head[0], head[1], head[2], head[3]);
-      print_log (0);
+      print_log (10);
       return (0);
     }
   if ((head[1] & 0x18) == 0x08)
     {
       sprintf(log.buf, "%s: Bad mpeg audio version specified in %x%x%x%x.\n", me, head[0], head[1], head[2], head[3]);
-      print_log (0);
+      print_log (10);
       return (0);
     }
   if (!(head[1] & 0x06))
     {
       sprintf(log.buf, "%s: Bad mpeg layer specified in %x%x%x%x.\n", me, head[0], head[1], head[2], head[3]);
-      print_log (0);
+      print_log (10);
       return (0);
     }
   if ((head[2] & 0xf0) == 0xf0)
     {
       sprintf(log.buf, "%s: No valid bitrate specified in %x%x%x%x.\n", me, head[0], head[1], head[2], head[3]);
-      print_log (0);
+      print_log (10);
       return (0); 
     }
   if ((head[2] & 0x0c) == 0x0c)
     {
       sprintf(log.buf, "%s: No valid sampling frequency specified in %x%x%x%x.\n", me, head[0], head[1], head[2], head[3]);
-      print_log (0);
+      print_log (10);
       return (0); 
     }
   return(1);
@@ -145,7 +145,7 @@ search_first_header (buffer_t *buffer, stream_t *stream)
 	if (head[0] == 0xff && isheader(head))
 	  {
 	    sprintf (log.buf, "%d: %x.%x.%x.%x\n", i, head[0], head[1], head[2], head[3]);
-	    print_log (10);
+	      print_log (10);
 	    for (k = 0; k < count; k++)
 	      {
 		if (samestream (head, heads[k].head))
@@ -295,7 +295,7 @@ parse_static_header_inf(stream_t *stream)
   stream->cbr = 1;
   stream->crc = !(frame->head[1] & 0x01);
   stream->private = (frame->head[2] & 0x01);
-  stream->copyrighted = (frame->head[3] & 0x08) >> 3;
+  stream->copyright = (frame->head[3] & 0x08) >> 3;
   stream->original = (frame->head[3] & 0x04) >> 2;
 }
 
@@ -619,24 +619,23 @@ read_frame (stream_t *stream, buffer_t *filebuf, buffer_t *databuf)
 }
 
 /*
- * remove_dead_frames:
+ * process_frames:
  *
  */
 int
-remove_dead_frames (stream_t *stream)
+process_frames (stream_t *stream, long startframe, long endframe)
 {
   frame_t *frame = stream->first;
-  long unsigned int count = 0;
-
-  while (frame)
-    {
+  unsigned long count = 0;
 
 #ifdef POINTER_DEBUG
       sprintf (log.buf, "frame %ld; prev: %p, next: %p, info: %p, data: %p\n", count, frame->prev, frame->next, frame->info, frame->data);
       print_log (10);
 #endif /* POINTER_DEBUG */
-
-      if (!frame->dsize)
+  
+  while (frame)
+    {
+      if ((count < startframe) || (endframe && (count > endframe)) || !frame->dsize)
 	{
 	  if (frame->next)
 	    {
@@ -649,92 +648,79 @@ remove_dead_frames (stream_t *stream)
 	      frame = NULL;
 	    }
 	  stream->count--;
-          sprintf (log.buf, "Removed empty frame %ld\n", count);
-	  print_log (2);
+          sprintf (log.buf, "Removed frame %ld\n", count);
+	    print_log (10);
+	}
+      else
+	frame = frame->next;
+      count++;
+    }
+  return (1);
+}
+/*
+ * empty_info:
+ *
+ */
+static unsigned char *
+empty_info (stream_t *stream)
+{
+  unsigned char *info = tcalloc (stream->isize, sizeof (unsigned char));
+  memset (info, 0x00, stream->isize);
+  
+  if (stream->maj_version == 1)
+    {
+      if (stream->mode == 3)
+	{
+	  info[1] = 0x03;
+	  info[2] = 0xc0;
+	  info[4] = 0x01; /* global gain */
+	  info[5] = 0xa4;
+	  info[6] = 0x1c; /* window switch & block type */
+	  info[12] = 0x34; /* global gain */
+	  info[13] = 0xf0;
 	}
       else
 	{
-	  frame = frame->next;
-	  count++;
+	  info[1] = 0x0f; /* scfsi */
+	  info[2] = 0xf0;
+	  /* granule 0 channel 0 */
+	  info[5] = 0x69; /* global gain = 210 */
+	  /* in the computation of the gain per frequency 210 is
+	     substracted, so the equation becomes 0 */
+	  info[6] = 0x07; /* windows switching flag & blocktype */
+	  /* granule 0 channel 1 */
+	  info[12] = 0x0d;
+	  info[13] = 0x20;
+	  info[14] = 0xe0;
+	  /* granule 1 channel 0 */
+	  info[19] = 0x01; /* global gain */
+	  info[20] = 0xa4;
+	  /* granule 1 channel 0 */
+	  info[27] = 0x34;
+	  info[28] = 0x80; /* global gain */
 	}
     }
-  return (1);
-}
-
-/*
- * remove_prev_frames:
- *
- */
-int
-remove_prev_frames (stream_t *stream, frame_t *mainframe, long unsigned int count)
-{
-  frame_t *frame = mainframe->prev;
-
-  stream->first = mainframe;
-  mainframe->prev = NULL;
-  
-  while (frame)
+  else
     {
-      
-#ifdef POINTER_DEBUG
-      sprintf (log.buf, "frame %ld; prev: %p, next: %p, info: %p, data: %p\n", count, frame->prev, frame->next, frame->info, frame->data);
-      print_log (10);
-#endif /* POINTER_DEBUG */
-      
-      if (frame->prev)
+      if (stream->mode == 3)
 	{
-	  frame = frame->prev;
-	  free_frame (stream, frame->next);
+	  info[3] = 0x01;
+	  info[4] = 0x48;
+	  info[6] = 0xe0;
+	  info[11] = 0x03;
+	  info[12] = 0x48;
+	  info[13] = 0x01;
+	  info[14] = 0xc0;
 	}
-      else /* first frame */
+      else
 	{
-	  free_frame (stream, frame);
-	  frame = NULL;
+	  info[3] = 0x03;
+	  info[4] = 0x48;
+	  info[5] = 0x01;
+	  info[6] = 0xc0;
 	}
-      stream->count--;
-      count--;
-      sprintf (log.buf, "Removed frame %ld\n", count);
-      print_log (2);
     }
-  return (1);
-}
-
-/*
- * remove_next_frames:
- *
- */
-int
-remove_next_frames (stream_t *stream, frame_t *mainframe, long unsigned int count)
-{
-  frame_t *frame = mainframe->next;
-
-  stream->last = mainframe;
-  mainframe->next = NULL;
-  
-  while (frame)
-    {
-      
-#ifdef POINTER_DEBUG
-      sprintf (log.buf, "frame %ld; prev: %p, next: %p, info: %p, data: %p\n", count, frame->prev, frame->next, frame->info, frame->data);
-      print_log (10);
-#endif /* POINTER_DEBUG */
-      
-      if (frame->next)
-	{
-	  frame = frame->next;
-	  free_frame (stream, frame->prev);
-	}
-      else /* first frame */
-	{
-	  free_frame (stream, frame);
-	  frame = NULL;
-	}
-      stream->count--;
-      count++;
-      sprintf (log.buf, "Removed frame %ld\n", count);
-      print_log (2);
-    }
-  return (1);
+  return (info);
 }
 
 /*
@@ -742,7 +728,7 @@ remove_next_frames (stream_t *stream, frame_t *mainframe, long unsigned int coun
  *
  */
 static int
-write_emptyframe (stream_t *stream)
+write_empty_startframe (stream_t *stream)
 {
   frame_t *frame = init_frame ();
 
@@ -755,61 +741,31 @@ write_emptyframe (stream_t *stream)
   frame->head = tmalloc (4 * sizeof(unsigned char));
   memcpy (frame->head, frame->next->head, 4);
   frame->backref = 0;
-  frame->info = tcalloc (stream->isize, sizeof (unsigned char));
+  frame->info = empty_info (stream);
 
-  if (stream->maj_version == 1)
-    {
-      if (stream->mode == 3)
-	{
-	  frame->info[1] |= 0x03;
-	  frame->info[2] |= 0xc0;
-	  frame->info[4] |= 0x01; /* global gain */
-	  frame->info[5] |= 0xa4;
-	  frame->info[6] |= 0x1c; /* window switch & block type */
-	  frame->info[12] |= 0x34; /* global gain */
-	  frame->info[13] |= 0xf0;
-	}
-      else
-	{
-	  frame->info[1] |= 0x0f; /* scfsi */
-	  frame->info[2] |= 0xf0;
-	  /* granule 0 channel 0 */
-	  frame->info[5] |= 0x69; /* global gain = 210 */
-	  /* in the computation of the gain per frequency 210 is
-	     substracted, so the equation becomes 0 */
-	  frame->info[6] |= 0x07; /* windows switching flag & blocktype */
-	  /* granule 0 channel 1 */
-	  frame->info[12] |= 0x0d;
-	  frame->info[13] |= 0x20;
-	  frame->info[14] |= 0xe0;
-	  /* granule 1 channel 0 */
-	  frame->info[19] |= 0x01; /* global gain */
-	  frame->info[20] |= 0xa4;
-	  /* granule 1 channel 0 */
-	  frame->info[27] |= 0x34;
-	  frame->info[28] |= 0x80; /* global gain */
-	}
-    }
-  else
-    {
-      if (stream->mode == 3)
-	{
-	  frame->info[3] |= 0x01;
-	  frame->info[4] |= 0x48;
-	  frame->info[6] |= 0xe0;
-	  frame->info[11] |= 0x03;
-	  frame->info[12] |= 0x48;
-	  frame->info[13] |= 0x01;
-	  frame->info[14] |= 0xc0;
-	}
-      else
-	{
-	  frame->info[3] |= 0x03;
-	  frame->info[4] |= 0x48;
-	  frame->info[5] |= 0x01;
-	  frame->info[6] |= 0xc0;
-	}
-    }
+  return (1);
+}
+
+/*
+ * write_empty_frame: 
+ *
+ */
+static int
+write_empty_frame (stream_t *stream, frame_t *prevframe)
+{
+  frame_t *frame = init_frame ();
+
+  frame->next = prevframe->next;
+  prevframe->next = frame->next->prev = frame;
+  stream->count++;
+  frame->hsize = frame->next->hsize;
+  frame->dsize = 0;
+  frame->kbps = frame->next->kbps;
+  frame->head = tmalloc (4 * sizeof(unsigned char));
+  memcpy (frame->head, frame->next->head, 4);
+  frame->backref = 0;
+  frame->info = empty_info (stream);
+
   return (1);
 }
 
@@ -822,13 +778,15 @@ calc_backref (stream_t *stream)
 {
   if (stream->layer == 3)
     {
-      int backref = 0, count = 0;
+      int backref = 0, count = 0, highest = 0;
+      int limit = (stream->maj_version == 1) ? 511 : 255; 
       frame_t *frame = stream->first;
       
       while (frame)
 	{
 	  frame->backref = backref;
 	  
+	  /* write backref */
 	  frame->info[0] &= 0x00;
 	  if (stream->maj_version == 1)
 	    frame->info[1] &= 0x7f;
@@ -848,21 +806,34 @@ calc_backref (stream_t *stream)
 #endif	  
 	  backref += (frame->hsize - 4 - stream->isize - frame->dsize);
 	  
-	  if ((stream->maj_version == 1) && (backref > 511))
-	    backref = 511;
-	  else if ((stream->maj_version == 2) && (backref > 255))
-	    backref = 255;
+	  if (backref > limit)
+	    backref = limit;
 	  else if (backref < 0)
 	    {
-	      sprintf (log.buf, "Unable to decently format stream, frame size (%d) exceeds available space (%d)\n", frame->dsize, (frame->hsize + backref) - (4 + stream->isize));
+	      sprintf (log.buf, "Unable to decently format stream, frame size (%d) exceeds available space (%d)\n", frame->dsize, frame->dsize + backref);
 	      print_log (2);
-	      /* should check if backref already reached max somewhere before - gets looped otherwise */
-	      count = 0;
-	      backref = 0;
-	      write_emptyframe (stream);
-	      frame = stream->first;
+
+	      if ((limit - highest + backref) < 0) /* local underrun */
+		{
+		  frame = frame->prev;
+		  count--;
+		  if (stream->maj_version == 1)
+		    backref = (frame->info[0] << 1) & (frame->info[1] >> 7);
+		  else
+		    backref = frame->info[0];
+		  write_empty_frame (stream, frame);
+		}
+	      else /* needs another frame at the start of the stream */
+		{
+		  write_empty_startframe (stream);
+		  count = backref = 0;
+		  frame = stream->first;
+		}
 	      continue;
 	    }
+	  
+	  if (backref > highest)
+	    highest = backref;
 	  
 	  frame = frame->next;
 	  count++;
@@ -980,7 +951,7 @@ write_frames (stream_t *stream, FILE *file)
 	    {
 	      write_buf (padding, framebuf, count);	    
 	      sprintf (log.buf, "padded frame %d with %d null bytes\n", fcount, count);
-	      print_log (2);
+	      print_log (10);
 	    }
 	  write_file_from_buf (framebuf, file, frame->hsize);
 	  frame = frame->next;
