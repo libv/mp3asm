@@ -1,17 +1,31 @@
 Changelog for mp3asm:
 ---------------------
+Todo:
+ - changing headers throughout the file
+ - fading
+ - implement Xing vbr header
+ - implement id3 v2
+ - link it to mpglib & alsa
+ - gtk frontend
 
+0.1.2: (22/03/01)
+------
+        - cleanin up process stream
 
-0.1.1:
+0.1.1: (19/03/01)
 ------
 	- removed dependency of glib, guint8 = unsigned char
 	- implementing the standard configure
-Todo:
- - add gnu configure
- - implement callbacks for parsing
- - implement & test vbr
- - implement id3 v1/2
- - link it to mpglib & alsa
+	- parsing now uses callbacks
+	- standard vbr apparently worked all the time!!!!
+	- implemented advanced header search
+	  u know those files where some brainless kid just deleted
+	  bytes till he stopped hearing the blip or whatever...
+	  well, mp3asm can now take that mp3 and pour it in a decent
+	  shape. 
+	- reads id3 v1 tag
+	- writes id3 v1 tag
+	- correctly calculates avg br
 
 0.1.0:
 ------
@@ -20,15 +34,15 @@ Todo:
 	- layer 3 streams seem to load.
 	- layer 2 too :)
 	- writing stream works np
-	- 29/03/01: it now can cut frames from a stream 	
+	- can cut frames from a stream 	
 
 0.0.1:
 ------
 Olli Fromme's magnificent idea ended abruptly in october of '97.
 More than 3ys before some wanker realised that mp3 files r a sequence of
 frames, and that it should be possible to edit at frame level and in the
-end stumbled over this lil gem. Although it appeared kinda broken it was
-way ahead of its time :) Too bad olli didnt continue development.
+end stumbled over this lil gem. Although it worked on just a few files it
+was way ahead of its time :) Too bad olli didnt continue development.
 
 So this would be a fair judgement:
  

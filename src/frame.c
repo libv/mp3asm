@@ -30,13 +30,12 @@
 #ifndef FRAME_DEBUG
 #define FRAME_DEBUG
 #endif
-/*
-#ifndef SIDE_DEBUG
+/*#ifndef SIDE_DEBUG
 #define SIDE_DEBUG
-#endif*/
+#endif
 #ifndef POINTER_DEBUG
 #define POINTER_DEBUG
-#endif
+#endif*/
 #ifndef WRITE_DEBUG
 #define WRITE_DEBUG
 #endif
@@ -46,6 +45,7 @@
 /* utils.c */
 extern void *tmalloc (size_t size);
 extern void *tcalloc (int n, size_t size);
+extern void *trealloc (void *ptr, size_t size);
 extern void print_log (int verb);
 extern void print_all (int verb);
 extern buffer_t *init_buf (int size);
@@ -56,6 +56,9 @@ extern int write_buf (unsigned char *data, buffer_t *buffer, int count);
 extern int write_file_from_buf (buffer_t *buffer, FILE *file, int count);
 extern int print_buf (buffer_t *buffer, int count);
 extern int print_data (unsigned char *data, int count);
+
+/* tag.c */
+extern int write_tag_v1 (stream_t *stream, FILE *file);
 
 /*
  * isheader: 
@@ -106,8 +109,78 @@ samestream (unsigned char head1[4], unsigned char head2[4])
 {
   if ((head1[1] == head2[1]) && ((head1[2] & 0x0c) == (head2[2] & 0x0c)) && ((head1[3] & 0xc3) == (head2[3] & 0xc3)))
     return (1);
-  return(2);
+  return(0);
 }
+
+/*
+ * search header: searches for next header from beginning of buffer
+ *                returns -1 when no valid header is found
+ *                or the position from buf->begin
+ *
+ */
+
+int
+search_first_header (buffer_t *buffer, stream_t *stream)
+{
+  int i = 0, count = 0, k;
+  unsigned char head[4];
+
+  typedef struct header_t
+  {
+    unsigned char head[4];
+    int count;
+  } header_t;
+
+  header_t *heads = NULL;
+  
+  while (1)
+    switch (read_buf(buffer, head, i, 4))
+      {
+      case 0:
+	sprintf(log.buf, "%s: No valid mp3header found in this buffer.\n", me);
+	print_log (10);
+	return(-1); /* fill the buffer */
+	
+      case 1:
+	if (head[0] == 0xff && isheader(head))
+	  {
+	    sprintf (log.buf, "%d: %x.%x.%x.%x\n", i, head[0], head[1], head[2], head[3]);
+	    print_log (10);
+	    for (k = 0; k < count; k++)
+	      {
+		if (samestream (head, heads[k].head))
+		  {
+		    sprintf (log.buf, "other header: %x.%x.%x.%x, count = %d\n", heads[k].head[0], heads[k].head[1], heads[k].head[2], heads[k].head[3], heads[k].count);
+		    print_log (10);
+		    if (heads[k].count == 3)
+		      {
+			stream->last->head = tmalloc(4 * sizeof (unsigned char));
+			memcpy (stream->last->head, heads[k].head, 4);
+			free (heads);
+			return (1);
+		      }
+		    heads[k].count++;
+		    break;
+		  }
+	      }
+	    if (k == count)
+	      {
+		count++;
+		heads = trealloc (heads, count * sizeof (header_t));
+		memcpy (heads[k].head, head, 4);
+		heads[k].count = 1;
+	      }
+	  }
+	i++;
+	break;
+	
+      default:
+	sprintf(log.buf, "%s: Unable to read from buffer.\n", me);
+	print_all (0);
+	return(-2); /* flush the buffer */
+      }
+}
+
 
 /*
  * search header: searches for next header from beginning of buffer
@@ -119,9 +192,10 @@ int
 search_header (buffer_t *buffer, stream_t *stream)
 {
   int i = 0;
+  unsigned char *head = tmalloc (4 * sizeof (unsigned char));
 
   while (1)
-    switch (read_buf(buffer, stream->last->head, i, 4))
+    switch (read_buf(buffer, head, i, 4))
       {
       case 0:
 	sprintf(log.buf, "%s: No valid mp3header found in this buffer.\n", me);
@@ -129,10 +203,15 @@ search_header (buffer_t *buffer, stream_t *stream)
 	return(-1); /* fill the buffer */
 	
       case 1:
-	if (stream->last->head[0] == 0xff)
+	if (head[0] == 0xff)
 	  {
-	    if(isheader(stream->last->head) && samestream(stream->last->head, stream->first->head))
-	      return(i);
+	    if(samestream(head, stream->first->head))
+	      {
+		if (stream->last->head) /* first frame - already set */
+		  free (stream->last->head);
+		stream->last->head = head;
+		return(i);
+	      }
 	  }
 	i++;
 	break;
@@ -179,15 +258,15 @@ parse_static_header_inf(stream_t *stream)
   case 0x00:
     stream->maj_version = 2; /* mpeg 2.5 */
     stream->min_version = 5;
-    stream->freq = freqtab[6 + (0x0c & frame->head[2])];
+    stream->freq = freqtab[6 + ((0x0c & frame->head[2]) >> 2)];
     break;
   case 0x10:
     stream->maj_version = 2; /* mpeg 2 */
-    stream->freq = freqtab[3 + (0x0c & frame->head[2])];
+    stream->freq = freqtab[3 + ((0x0c & frame->head[2]) >> 2)];
     break;  
   case 0x18:
     stream->maj_version = 1; /* mpeg 1 */
-    stream->freq = freqtab[0x0c & frame->head[2]];
+    stream->freq = freqtab[(0x0c & frame->head[2]) >> 2];
     break;
   }
   
@@ -230,6 +309,9 @@ parse_frame_header (stream_t *stream)
 {
   frame_t *frame = stream->last;
 
+  sprintf (log.buf, "%x.%x.%x.%x\n", frame->head[0], frame->head[1], frame->head[2], frame->head[3]);
+  print_log (10);
+  
   if (stream->count < 0)
     parse_static_header_inf(stream);
   
@@ -237,7 +319,9 @@ parse_frame_header (stream_t *stream)
   
   if (stream->count < 0)
     stream->avkbps = frame->kbps;
-  else if (stream->cbr && (stream->avkbps != frame->kbps)) /* add a decent avg calculatin routine here - theres one in abc */
+  else if (!stream->cbr)
+    stream->avkbps += (frame->kbps - stream->avkbps) / (stream->count + 1);
+  else if (stream->cbr && (stream->avkbps != frame->kbps))
     stream->cbr = 0;
   
   frame->hsize = (frame->kbps * 125 * stream->samples) / stream->freq;
@@ -260,8 +344,6 @@ parse_frame_header (stream_t *stream)
 static frame_t *
 init_frame (void) 
 {
-  int i;
-
   frame_t *frame;
   
   frame = tmalloc(sizeof(frame_t));
@@ -269,9 +351,7 @@ init_frame (void)
   frame->prev = NULL;
   frame->next = NULL;
 
-  for ( i = 0; i < 4; i++)
-    frame->head[i] = 0;
-
+  frame->head = NULL;
   frame->info = NULL;
   frame->data = NULL;
   
@@ -387,34 +467,48 @@ read_frame (stream_t *stream, buffer_t *filebuf, buffer_t *databuf)
   frame_t *frame = init_frame ();
 
   if (stream->count < 0)
+    {
       stream->first = frame;
+      stream->last = frame;
+
+      switch (search_first_header(filebuf, stream))
+	{
+	case -2:
+	  free_frame (stream, frame);
+	  return (-1); /* stop readin this file */
+	case -1:
+	  free_frame (stream, frame);
+	  return (0); /* end of buffer */
+	default:
+	  break;
+	}
+      temp = search_header(filebuf, stream);
+    }
   else
     {
       frame->prev = stream->last;
       stream->last->next = frame;
+      stream->last = frame;
+      
+      switch (temp = search_header(filebuf, stream))
+	{
+	case -2:
+	  free_frame (stream, frame);
+	  return (-1); /* stop readin this file */
+	case -1:
+	  free_frame (stream, frame);
+	  return (0); /* end of buffer */
+	default:
+	  break;
+	}
     }
-
-  stream->last = frame;
-
-  switch (temp = search_header(filebuf, stream))
-    {
-    case -2:
-      free_frame (stream, frame);
-      return (-1); /* stop readin this file */
-    case -1:
-      free_frame (stream, frame);
-      return (0); /* end of buffer */
-    default:
-      break;
-    }
-
   parse_frame_header(stream);
-
+  
 #ifdef FRAME_DEBUG
   sprintf(log.buf, "Frame %ld: %d kbps, header to header size = %d\n", stream->count + 1, frame->kbps, frame->hsize);
   print_log (10);
 #endif
-
+  
   if (stream->layer < 3)
     {
       if (filebuf->used <= frame->hsize)
@@ -467,18 +561,26 @@ read_frame (stream_t *stream, buffer_t *filebuf, buffer_t *databuf)
 	    free_frame(stream, frame);
 	    return (0);
 	  }
-      rem_buf(filebuf, 4 + stream->isize + temp);
+
+      if (temp)
+	{
+	  sprintf (log.buf, "copied %d from filebuf to databuf\n", temp);
+	  print_log (10);
+	  cut_buf(filebuf, databuf, temp);
+	}
+
+      rem_buf(filebuf, 4 + stream->isize);
 
 #ifdef FRAME_DEBUG
       sprintf(log.buf, "            Backref: %d, datasize: %d\n", frame->backref, frame->dsize);
       print_log (10);
 #endif
-      
+
       if (databuf->used < frame->backref)
 	{
 	  sprintf(log.buf, "Error: bad stream formattin, bad backref!\n");
 	  print_all (0);
-	  free_frame(stream, frame);
+	  free_frame (stream, frame);
 	  return (-1);
 	}
       
@@ -493,7 +595,7 @@ read_frame (stream_t *stream, buffer_t *filebuf, buffer_t *databuf)
 	{
 	  sprintf(log.buf, "Error: bad stream formattin, databuffer underrun.\n");
 	  print_all (0);
-	  free_frame(stream, frame);
+	  free_frame (stream, frame);
 	  return (-1);
 	}
       if (frame->dsize)
@@ -642,8 +744,6 @@ remove_next_frames (stream_t *stream, frame_t *mainframe, long unsigned int coun
 static int
 write_emptyframe (stream_t *stream)
 {
-  int i;
-
   frame_t *frame = init_frame ();
 
   frame->next = stream->first;
@@ -652,8 +752,8 @@ write_emptyframe (stream_t *stream)
   frame->hsize = frame->next->hsize;
   frame->dsize = 0;
   frame->kbps = frame->next->kbps;
-  for (i = 0; i < 4; i++)
-    frame->head[i] = frame->next->head[i];
+  frame->head = tmalloc (4 * sizeof(unsigned char));
+  memcpy (frame->head, frame->next->head, 4);
   frame->backref = 0;
   frame->info = tcalloc (stream->isize, sizeof (unsigned char));
 
@@ -783,7 +883,7 @@ write_frames (stream_t *stream, FILE *file)
   buffer_t *framebuf = init_buf (FRAMEBUF_SIZE * 1024);
   
   if (stream->layer != 3)
-    while (frame)
+      while (frame)
       {
 	print_data (frame->head, 4);
 	write_buf (frame->head, framebuf, 4);
@@ -887,6 +987,7 @@ write_frames (stream_t *stream, FILE *file)
 	  fcount++;
 	}
     }
+  write_tag_v1 (stream, file);
   return (1);
 }
 

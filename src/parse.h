@@ -30,9 +30,9 @@ typedef struct input_t
   char *name; /* name of the input file */
   FILE *file;
   
-  int skipframes;
-  int readframes;
-  int lastframe;
+  long startframe;
+  long readframes;
+  long endframe;
   int use_id3;
   void *stream;
 } input_t;

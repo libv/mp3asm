@@ -1,5 +1,8 @@
 README:
 -------
+Overall whine:
+--------------
+  (/me just loves the sound of his own voice)
 
   Quite a usefull lil app in my honest opinion.
 
@@ -8,22 +11,54 @@ README:
   Well, most ppl probably prefer decoding, wav editing, reencoding, but
 that has consequences.
   Encoders use advanced filtering to create audio data thats easy to
-compress while ppl can hardly tell the difference (depending on BR
+compress so that ppl can hardly tell the difference (depending on BR
 offcourse) and then they compress that filtered audiodata. Now filtering
 once from original full range unfiltered audio will provide the nicest
 result. Every subsequent filtering will result in more loss of data, cos
 the only real difference between encoders is the filterbanks.
   And offcourse, u dont have to waste precious cycles on the whole lengthy
 process.
-
   Yes indeed, with wavediting programs u can edit right up to the
 millisecond, or even better. But to be honest, an 128kbps mpeg 1 layer 3
 file has 25 frames per second, which means u can cut right down to
-40ms. If i dont mind the quality of a 128kbps file, how can u mind a few
-inaudible millisecs?
-
+40ms. If u dont mind the quality of a 128kbps file, how can u mind a few
+millisecs?
   So when this app is up and running theres no more reason to waste a
 perfectly good rip cos of a few bad starting frames or a long lead out.
 At this point i even believe it should be possible to provide for fading
 in/out, i aint certain yet actually :)
+ I have no clue whatsoever on why Olli fromme halted development back in '97.
+Maybe cos mp3s were a rarity back then? Maybe some personal reason. I will
+prolly never know. What I do know is that he had an unbelievable idea and he
+wrote a program that did the job very well.
 
+Usage:
+------
+
+ Ok, for starters, get urself mpg123... U can use -k/n to choose which frames to play.
+This helps u pinpoint which frames u can actually discard. Then feed those boundaries
+into mp3asm and it will do it for u.
+ If u, for example want 500 frames, u will probably get 501 frames, cos mp3asm often adds
+an empty frame (only when needed) to the start of the stream in order to decently format
+the stream. This is a valid practice which all encoders do, i often see rips which have
+80+ empty frames. I believe this is done for id3v2, which has all the id3 frames burried
+inside the wasted space of a stream.
+
+State of the program:
+---------------------
+
+ It is able discard chosen frames from a stream and write them to a new file. There is no
+vbr support yet (thats first on the list) and id3 tags r currently thrown away. When this
+is implemented ill test for the validity of fading in/out by resetting the gain values.
+After that ill implement mpglib & alsa 0.9.0 support, and if im still in the mood ill
+build a petite gtk frontend for it.
+
+Installation:
+-------------
+
+ Plain ./configure, make & make install should do the trick. This program has only been
+tested on standard x86 linux, so be warned. Any hints on making it more portable will always
+be very welcome. There should not be feared for input files. Mp3asm dusnt overwrite old files.
+In this preliminary version that could be quite a hazard for ur original files. 
+
+Enjoy ur mp3s!

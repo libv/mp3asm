@@ -7,7 +7,7 @@ AC_PROG_CC
 dnl Checks for programs.
 AC_PROG_LN_S
 
-CFLAGS="-O -Wall"
+CFLAGS="-g -O -Wall"
 
 dnl Checks for libraries.
 

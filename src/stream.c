@@ -36,7 +36,13 @@ extern buffer_t *init_buf (int size);
 extern void free_buf(buffer_t *buffer);
 extern int fill_buf_from_file (buffer_t *buffer, FILE *file);
 extern int rem_buf (buffer_t *buffer, int count);
+extern int cut_buf (buffer_t *buffera, buffer_t *bufferb, int count);
 extern int print_buf (buffer_t *buffer);
+
+/* tag.c */
+
+extern int get_tag_v1 (stream_t *stream, buffer_t *buffer);
+extern int write_tag_v1 (stream_t *stream, buffer_t *buffer);
 
 /* frame.c */
 
@@ -76,6 +82,7 @@ init_stream(void)
   stream->copyrighted = 0;
   stream->original = 0;
   stream->count = -1;
+  stream->tag = NULL;
 
   stream->first = NULL;
   stream->last = NULL;
@@ -136,10 +143,23 @@ read_stream (FILE *file)
 	    eob++;
 	  }
     }
-  sprintf (log.buf, "Data still in buffers: filebuf: %d databuf: %d\n", filebuf->used, databuf->used);
-  print_log (10);
-  rem_buf (filebuf, filebuf->used);
+  if (filebuf->used)
+    {
+      if ((filebuf->used + databuf->used) > databuf->size)
+	{
+	  if (filebuf->used > databuf->size)
+	    rem_buf (filebuf, filebuf->used - databuf->size);
+	  rem_buf (databuf, (databuf->used + filebuf->used) - databuf->size);
+	}
+      cut_buf (filebuf, databuf, filebuf->used);
+    }
   free_buf (filebuf);
+
+  fprintf (stderr, "databuf used: %d\n", databuf->used);
+
+  if (get_tag_v1 (stream, databuf))
+    fprintf (stderr, "the tag is: %s\n", stream->tag);
+
   rem_buf (databuf, databuf->used);
   free_buf (databuf);
 
@@ -160,9 +180,9 @@ print_stream_inf(stream_t *stream, char *name)
   print_all (1);
 
   if (!stream->cbr)
-    sprintf (log.buf, " VBR [avg. %d kbps], ", stream->avkbps);
+    sprintf (log.buf, " VBR [avg. %.0f kbps], ", stream->avkbps);
   else 
-    sprintf (log.buf, " at %d kbps, ", stream->avkbps);
+    sprintf (log.buf, " at %.0f kbps, ", stream->avkbps);
 
   print_all (1);
   sprintf (log.buf, "sampled at %d.\n", stream->freq);
@@ -229,12 +249,13 @@ print_stream_inf(stream_t *stream, char *name)
  *
  */
 int
-process_stream (stream_t *stream, long skipframes, long readframes, long lastframe)
+process_stream (stream_t *stream, long skipframes, long lastframe)
 {
   /*  this function is optimised for skipframes || lastframe to equal 0
    *  As this will very often be the case.
    *  A gtk frontend will one day make it much easier to use & program
    */
+
   long count = 0;
   frame_t *frame = stream->first;
 

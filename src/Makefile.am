@@ -3,5 +3,6 @@
 
 bin_PROGRAMS = mp3asm
 
-mp3asm_SOURCES = utils.c parse.c frame.c stream.c mp3asm.c
+mp3asm_SOURCES = utils.c parse.c tag.c \
+	         frame.c stream.c mp3asm.c
 

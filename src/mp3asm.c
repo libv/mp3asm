@@ -80,9 +80,9 @@ new_input (void)
 
   input[inputs - 1]->name = NULL;
   input[inputs - 1]->file = NULL;
-  input[inputs - 1]->skipframes = 0;
+  input[inputs - 1]->startframe = 0;
   input[inputs - 1]->readframes = 0;
-  input[inputs - 1]->lastframe = 0;
+  input[inputs - 1]->endframe = 0;
   input[inputs - 1]->use_id3 = 0;
   input[inputs - 1]->stream = NULL;
 }
@@ -135,7 +135,7 @@ open_inputs (void)
       fclose (input[i]->file);
       input[i]->file = NULL;
 
-      process_stream (input[i]->stream, input[i]->skipframes, input[i]->readframes, input[i]->lastframe);
+      process_stream (input[i]->stream, input[i]->startframe, input[i]->readframes, input[i]->endframe);
     }
 }
 

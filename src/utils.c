@@ -226,7 +226,7 @@ logopen(void) /* for appending only, logfile... */
 /*
 #ifndef DEBUG_BUFFER
 #define DEBUG_BUFFER
-#endif */
+#endif*/
 
 /*
  * init_buf: initialises a buffer.
