@@ -1,0 +1,29 @@
+README:
+-------
+
+  Quite a usefull lil app in my honest opinion.
+
+  Why?
+
+  Well, most ppl probably prefer decoding, wav editing, reencoding, but
+that has consequences.
+  Encoders use advanced filtering to create audio data thats easy to
+compress while ppl can hardly tell the difference (depending on BR
+offcourse) and then they compress that filtered audiodata. Now filtering
+once from original full range unfiltered audio will provide the nicest
+result. Every subsequent filtering will result in more loss of data, cos
+the only real difference between encoders is the filterbanks.
+  And offcourse, u dont have to waste precious cycles on the whole lengthy
+process.
+
+  Yes indeed, with wavediting programs u can edit right up to the
+millisecond, or even better. But to be honest, an 128kbps mpeg 1 layer 3
+file has 25 frames per second, which means u can cut right down to
+40ms. If i dont mind the quality of a 128kbps file, how can u mind a few
+inaudible millisecs?
+
+  So when this app is up and running theres no more reason to waste a
+perfectly good rip cos of a few bad starting frames or a long lead out.
+At this point i even believe it should be possible to provide for fading
+in/out, i aint certain yet actually :)
+
