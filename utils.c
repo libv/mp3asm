@@ -28,16 +28,6 @@ void *tmalloc (size_t size)
 	return (mem);
 }
 
-char *strndup (const char *src, int num)
-{
-	char *dst;
-
-	if (!(dst = (char *) malloc(num+1)))
-		return (NULL);
-	dst[num] = '\0';
-	return (strncpy(dst, src, num));
-}
-
 char *justify (char *str)
 {
 	int si = 0, di = 0, havespc = TRUE;

@@ -39,15 +39,6 @@ void *tmalloc (size_t size);
  *   allocated.
  */
 
-char *strndup (const char *src, int num);
-/*
- *   Like strdup(), but limits the string length to at most
- *   <num> characters (not counting the terminating zero).
- *   The resulting string is always zero-terminated.
- *   Always allocates <num>+1 bytes, even if less space would
- *   be sufficient to store <src>.
- */
-
 char *justify (char *str);
 /*
  *   Removes leading and trailing whitespace, and compresses

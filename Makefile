@@ -3,11 +3,14 @@
 #   Flags for Solaris (SparcWorks cc):
 #
 #CFLAGS=-fast -native -xO5 -Xc -D__EXTENSIONS__ -v
-
 #
 #   Flags for FreeBSD:
 #
-CFLAGS=-O5 -ansi -pedantic -Wall
+#CFLAGS=-O5 -ansi -pedantic -Wall
+#
+# Flag for linux?????
+# 
+CFLAGS= -Wall
 
 ###############################################################
 ###############################################################

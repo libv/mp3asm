@@ -50,7 +50,7 @@ void *
 check_pointer (void *ptr)
 {
 	if (!ptr) {
-		fprintf (stderr, "%s: out of memory.\n", me);
+		fprintf (stderr, "\n%s: out of memory.", me);
 		exit (EX_OSERR);
 	}
 	return (ptr);
@@ -169,9 +169,9 @@ analyse_headerset (void)
 		}
 	}
 	if (dumped && verbose >= 1) {
-		fprintf (stderr, "%s: dropping %d probably broken frames.\n",
+		fprintf (stderr, "\n%s: dropping %d probably broken frames.",
 		    me, dumped);
-		fprintf (stderr, "%s: %d frames left.\n", me, saved);
+		fprintf (stderr, "\n%s: %d frames left.", me, saved);
 	}
 }
 
@@ -181,14 +181,15 @@ wread (int fd, uint8 *buf, int count)
 	int readb;
 
 	while (count) {
-		if ((readb = read(fd, buf, count)) < 0)
+		if ((readb = read(fd, buf, count)) < 0) {
 			if (errno == EINTR)
 				continue;
 			else {
-				fprintf (stderr, "%s: read error\n", me);
+				fprintf (stderr, "\n%s: read error", me);
 				perror ("read()");
 				return (0);
 			}
+                }
 		if (!readb) /* EOF */
 			return (2);
 		count -= readb;
@@ -211,7 +212,7 @@ read_head (uint32 maxtries)
 		return (2); /* EOF */
 	default:
 		fprintf (stderr,
-		    "%s: error reading frame header.\n", me);
+		    "\n%s: error reading frame header.", me);
 		return (0);
 	}
 	head = (uint32) bbuf[0] << 24
@@ -227,26 +228,26 @@ read_head (uint32 maxtries)
 				break;
 			case 2:
 				if (verbose >= 1)
-					fprintf (stderr, "%s: skipped %d "
-					    "bad bytes.\n", me, try + 3);
+					fprintf (stderr, "\n%s: skipped %d "
+					    "bad bytes.", me, try + 3);
 				return (2); /* EOF */
 			default:
 				fprintf (stderr,
-				    "%s: error reading frame header.\n",
+				    "\n%s: error reading frame header.",
 				    me);
 				return (0);
 			}
 			head = (head & 0xffffff) << 8 | bbuf[0];
 		}
 		else {
-			fprintf (stderr, "%s: can't find "
-			    "valid MPEG audio header\n", me);
+			fprintf (stderr, "\n%s: can't find "
+			    "valid MPEG audio header", me);
 			errno = 0;
 			return (0);
 		}
 	}
 	if (try)
-		fprintf (stderr, "%s: skipped %d bad bytes.\n", me, try);
+		fprintf (stderr, "\n%s: skipped %d bad bytes.", me, try);
 	return (head);
 }
 
@@ -308,7 +309,8 @@ read_frame (tframe *f, int ignore)
 			return (2); /* EOF */
 		}
 	while
-	    (!get_framedata(f->head, &f->isize, &locdsize) || locdsize <= 0);
+	    (!get_framedata(f->head, &f->isize, &locdsize)); /*|| locdsize <= 0); */
+        fprintf(stderr, "\rframe: %5d; locdsize: %4d", framenum, locdsize);
 	if (!ignore)
 		add_headerset (f->head);
 	if (f->isize > 0) {
@@ -323,7 +325,7 @@ read_frame (tframe *f, int ignore)
 			return (2); /* EOF */
 		default:
 			fprintf (stderr,
-			    "%s: error reading frame side info.\n", me);
+			    "\n%s: error reading frame side info.", me);
 			return (0);
 		}
 		backref = ((unsigned) f->info[0] << 1)
@@ -340,7 +342,7 @@ read_frame (tframe *f, int ignore)
 	case 2:
 		return (2); /* EOF */
 	default:
-		fprintf (stderr, "%s: error reading frame data.\n", me);
+		fprintf (stderr, "\n%s: error reading frame data.", me);
 		return (0);
 	}
 	if (lastf) {
@@ -380,7 +382,7 @@ read_stream (char *name, int skip, int count)
 	int result, start, end;
 
 	if ((mp3_fd = open(name, O_RDONLY, 0)) < 0) {
-		fprintf (stderr, "%s: ", me);
+		fprintf (stderr, "\n%s: ", me);
 		perror (name);
 		exit (EX_NOINPUT);
 	}
@@ -405,7 +407,7 @@ read_stream (char *name, int skip, int count)
 			break;
 		}
 		else if (result != 1) {
-			fprintf (stderr, "%s: error reading frame.\n", name);
+			fprintf (stderr, "\n%s: error reading frame.", name);
 			exit (EX_UNAVAILABLE);
 		}
 		if (!firstframe) {
@@ -423,23 +425,24 @@ read_stream (char *name, int skip, int count)
 	close (mp3_fd);
 	if (lastframe)
 		lastframe->next = NULL;
-	if (verbose >= 1)
+	if (verbose >= 1) {
 		if (end - start)
 			fprintf (stderr,
-			    "\r%s:\t%d - %d %s(%d)\n", name,
+			    "\n\r%s:\t%d - %d %s(%d)", name,
 			    start, end - 1, result == 2 ? "[EOF] " : "",
 			    end - start);
 		else
 			fprintf (stderr,
-			    "\r%s:\tno frames within given range\n", name);
+			    "\n\r%s:\tno frames within given range", name);
+         }
 }
 
 static void
 grow_frame (tframe *f, int num)
 {
 	if (verbose >= 4)
-		fprintf (stderr, "Note: frame %d data underflow, "
-		    "inserting %d pad bytes.\n", framenum - 1, num);
+		fprintf (stderr, "\nNote: frame %d data underflow, "
+		    "inserting %d pad bytes.", framenum - 1, num);
 	if (f->data)
 		f->data = realloc(f->data, f->dsize + num);
 	else
@@ -450,18 +453,36 @@ grow_frame (tframe *f, int num)
 }
 
 tframe *
+make_emptyframe ()
+{
+	tframe *insf;
+
+        if (emptyframe) {
+		fprintf (stderr, "\n%s: internal error (called "
+		    "make_emptyframe while not neccessary)", me);
+		exit (EX_SOFTWARE);
+	}
+	if (verbose >= 1)
+		fprintf (stderr, "\nWarning: no empty frame made, making"
+                    " one now.");
+	insf = dup_frame(firstframe);
+
+        free(insf->data);
+	insf->data = NULL;
+        insf->dsize = 0;
+	return (insf);
+}
+
+tframe *
 insert_emptyframe (tframe *f)
 {
 	tframe *insf;
 
 	if (verbose >= 1)
-		fprintf (stderr, "Warning: frame %d data overflow, "
-		    "have to insert empty frame.\n", framenum);
-	if (!emptyframe) {
-		fprintf (stderr, "%s: internal error (too "
-		    "many dirty hacks)\n", me);
-		exit (EX_SOFTWARE);
-	}
+		fprintf (stderr, "\nWarning: frame %d data overflow, "
+		    "have to insert empty frame.", framenum);
+	if (!emptyframe) 
+                emptyframe = make_emptyframe();
 	insf = dup_frame(emptyframe);
 	insf->next = f;
 	if ((insf->prev = f->prev))
@@ -480,13 +501,12 @@ interleave_stream (void)
 	int fsize, normsize;
 	int backref, oldbackref;
 	int bres, oldbres;
-	int ddiff;
-
+	int ddiff, show = 0;
 	
 	if (verbose >= 2)
-		fprintf (stderr, "Building new frame structure ...\n");
+		fprintf (stderr, "\nBuilding new frame structure ...");
 	if (!get_frameinfo(firstframe->head, &fi)) {
-		fprintf (stderr, "%s: not a valid MPEG audio stream.\n", me);
+		fprintf (stderr, "\n%s: not a valid MPEG audio stream.", me);
 		exit (EX_UNAVAILABLE);
 	}
 	framenum = 0;
@@ -497,7 +517,15 @@ interleave_stream (void)
 	bres = 0;
 	if (!(f = firstframe))
 		return;
+        if (verbose >= 2)
+                fprintf(stderr, "\nbpf_mul: %d; bpf_div: %d; normal size: %d",
+                        bpf_mul, bpf_div, normsize);
 	for (;;) {
+		if (show)
+			show = 0;
+		if (verbose >= 2) 
+			fprintf (stderr, "\r%s:frame   %d; datasize = %d; infosize = %d      ",
+				me, framenum, f->dsize, f->isize);
 		/*
 		 *   First calculate the frame size, based
 		 *   on the target bit rate.  Note that this
@@ -506,22 +534,29 @@ interleave_stream (void)
 		 *   the average deviation is always smaller
 		 *   than one byte, according to the target
 		 *   bit rate.
-		 *
-		 *   This approach doesn't work with layer-1
-		 *   streams, but who uses layer-1 anyway...
 		 */
+		if (fi.layer == 1) {
+			fprintf (stderr, "\n%s: Is that a layer 1 mpeg file???", me);
+			fprintf (stderr, "\nPlease send it to _Death_, thank u");
+			exit (EX_UNAVAILABLE);
+		}
 		oldbres = bres;
 		for (fsize = 1;; fsize++)
 			if ((bres += bpf_div) >= bpf_mul) {
 				bres -= bpf_mul;
 				break;
 			}
+		if (verbose >= 5)
+			fprintf(stderr, "\nbres: %d; oldbres: %d; ", bres, oldbres);
 		f->newfsize = fsize;
 		f->newdsize = fsize - (f->isize + 4);
 		if (fsize == normsize)
 			f->head = f->head & ~((uint32) 0x0200);
 		else
 			f->head = f->head | 0x0200;
+		if (verbose >= 5)
+			fprintf(stderr,"\nfsize: %d; f->newfsize: %d; f->newdsize: %d;",
+				fsize, f->newfsize, f->newdsize);
 		/*
 		 *   Now calculate the back reference pointer,
 		 *   which indicates the starting offset of the
@@ -529,6 +564,8 @@ interleave_stream (void)
 		 *   this value, so it must be within the range
 		 *   from 0 to 511.
 		 */
+		if (verbose >= 5)
+			fprintf (stderr, "\n pre-backref: %d;", backref);
 		if (backref > 511) {
 			/*
 			 *   If the back reference exceeds 511,
@@ -536,13 +573,27 @@ interleave_stream (void)
 			 *   previous frame.
 			 */
 			grow_frame (f->prev, backref - 511);
+			if (verbose > 2 && verbose < 4 && !show) {
+				show = 1;
+				fprintf(stderr,"\nfsize: %d; f->newfsize: %d; f->newdsize: %d;",
+					fsize, f->newfsize, f->newdsize);
+				fprintf (stderr, "pre-backref: %d;", backref);
+			}
 			backref = 511;
 		}
-		f->info[0] = (backref >> 1) & 0xff;
-		f->info[1] = ((backref << 7) & 0x80) | (f->info[1] & 0x7f);
+		/*
+		 * since layer 1,2 dont have sideinfo... 
+		 * we dont need a segfault trying to use it
+		 */
+		if (f->info) {
+			f->info[0] = (backref >> 1) & 0xff;
+			f->info[1] = ((backref << 7) & 0x80) | (f->info[1] & 0x7f);
+		}
 		oldbackref = f->backref = backref;
 		backref += f->newdsize - f->dsize;
-		if (backref < 0) {
+		if (verbose >= 5 || show)
+			fprintf (stderr, "\nbackref: %d; oldbackref: %d;", backref, oldbackref);
+         	if (backref < 0) {
 			/*
 			 *   We're in trouble now.
 			 *   The data belonging to the frame
@@ -552,17 +603,25 @@ interleave_stream (void)
 			 *   (in fact it's a dirty hack), but
 			 *   at least we stay compatible with
 			 *   the MPEG audio specifications.
-			 */
-			backref = oldbackref;
+			 *
+			 */		    
+                    backref = oldbackref;
 			bres = oldbres;
+			if (verbose > 2 && verbose < 5 && !show) {
+				show = 1;
+				fprintf (stderr, "\nfsize: %d; f->newfsize: %d; f->newdsize: %d;",
+					fsize, f->newfsize, f->newdsize);
+				fprintf (stderr, "\nbackref: %d; oldbackref: %d;", backref, oldbackref);
+			}
 			f = insert_emptyframe (f);
+
 			/*
 			 *   Now continue interleaving with
 			 *   the empty frame that has just
 			 *   been inserted.
 			 */
 			continue;
-		}
+   		}
 		framenum++;
 		if ((f = f->next))
 			continue;
@@ -580,6 +639,7 @@ interleave_stream (void)
 		f = lastframe;
 		ddiff = (f->backref + f->newdsize) - f->dsize;
 		if (ddiff > 0)
+		
 			grow_frame (f, ddiff);
 		else if (ddiff < 0) {
 			backref = oldbackref;
@@ -605,12 +665,12 @@ write_stream (void)
 	else
 		if ((mp3_fd =
 		    open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644)) < 0) {
-			fprintf (stderr, "%s: ", me);
+			fprintf (stderr, "\n%s: ", me);
 			perror (usestdout ? "stdout" : outfile);
 			exit (EX_IOERR);
 		}
 	if (verbose >= 2)
-		fprintf (stderr, "Writing to %s ...\n",
+		fprintf (stderr, "\nWriting to %s ...",
 		   usestdout ? "stdout" : outfile);
 	doffset = 0;
 	framenum = 0;
@@ -642,7 +702,7 @@ write_stream (void)
 	if (!usestdout)
 		close (mp3_fd);
 	if (verbose >= 1)
-		fprintf (stderr, "\r%s: Wrote %d frames.\n", me, framenum);
+		fprintf (stderr, "\r%s: Wrote %d frames.", me, framenum);
 }
 
 void
