@@ -31,7 +31,7 @@ void *tmalloc (size_t size);
 void *trealloc (void *ptr, size_t size);
 unsigned char *mp3_read (int filenr, long pos, size_t size);
 
-/* blocks.c */
+/* block.c */
 static void print_block (block_t *block);
 block_t *init_block (int filenr, long pos, guint16 size, unsigned char type);
 block_t *add_block (block_t **stream, int *count, int filenr,
@@ -161,7 +161,8 @@ get_framesize (unsigned char head[4])
 }
 
 /*
- * actual header finding alg
+ * Finds the first header by looking for checks subsequent equal headers...
+ * Adds the second byte to the file[filenr] struct
  *
  */
 
@@ -226,7 +227,83 @@ search_first_header (int filenr, int checks)
 	}
       pos++;
     }
+}
+
+static int
+search_next_header (int filenr, unsigned long pos, unsigned int offset)
+{
+  unsigned char head[4];
+  int i, j, temp, shift;
+
+  /* first check if the file has enough bytes left */
+  if ((pos + offset + 4) > file[filenr]->filesize)
+    return (-1);
   
+  /* now check if the head is in the appropriate place */
+  /* expect the file to have at least 1 head available, check the getc output later on */
+  fseek (file[filenr]->file, pos + offset, SEEK_SET);
+  for (i = 0; i < 4; i++)
+    head[i] = getc(file[filenr]->file);
+
+  if (samestream (head, file[filenr]->head))
+    return (offset); /* success!!! */
+   
+  /* if not... check 24 next bytes */
+  for (i = 1; i < 25; i++)
+    {
+      if ((temp = getc(file[filenr]->file)) == EOF)
+	{
+	  if (feof (file[filenr]->file))
+	    return (-2);
+	  return (-1);
+	}
+      for (j = 0; j < 3; j++)
+	head[j] = head[j + 1];
+      head[3] = temp;
+      if (samestream(head, file[filenr]->head))
+	return (offset + i); /* most common = small shift forward */
+    } 
+  /* then check right back to pos  */
+  /* fill up the head first */
+  fseek (file[filenr]->file, pos + offset - 1, SEEK_SET);
+  for (i = 0; i < 4; i++)
+    head[i] = getc(file[filenr]->file);
+
+  /* now start the backward search */
+  fseek (file[filenr]->file, pos + offset, SEEK_SET);
+  for (i = 1; i <= offset; i++)
+    {
+      for (j = 0; j < 3; j++)
+	head[j+1] = head [j];
+      fseek (file[filenr]->file, -2, SEEK_CUR);
+      head[0] = getc (file[filenr]->file);
+      if (samestream (head, file[filenr]->head))
+	return (offset - i);
+    }
+
+  /* then start checking from pos + offset +25 till EOF */
+  fseek (file[filenr]->file, pos + offset + 22, SEEK_SET);
+  for (i = 0; i < 4; i++)
+    head[i] = getc(file[filenr]->file);
+
+  if (samestream (head, file[filenr]->head))
+    return (offset + 22); /* success!!! */
+   
+  /* if not... check 24 next bytes */
+  for (i = 1; 1; i++)
+    {
+      if ((temp = getc(file[filenr]->file)) == EOF)
+	{
+	  if (feof (file[filenr]->file))
+	    return (-2);
+	  return (-1);
+	}
+      for (j = 0; j < 3; j++)
+	head[j] = head[j + 1];
+      head[3] = temp;
+      if (samestream(head, file[filenr]->head))
+	return (offset + i); /* most common = small shift forward */
+    } 
 }
 
 /*
@@ -375,6 +452,50 @@ read_sideinfo_2 (stream_t *stream, info2_t *sideinfo)
     total++;
   
   sideinfo->dsize = total;
+}
+/*
+ * first_pass
+ * takes a first run through the mp3... places headers in the blocklist.
+ *
+ */ 
+int
+first_pass (stream_t *stream, int filenr)
+{
+  int temp, count = -1;
+  unsigned long pos = 0;
+  block_t *hblock, *iblock, *block;
+  block_t **list;
+  
+  stream = init_stream ();
+  list = stream->list
+
+  if ((temp = search_first_header (filenr, 3)) < 0)
+    return (temp);
+  parse_first_header (stream, file[filenr]->head);
+  stream->head1 = file[filenr]->head[1];
+
+  if (temp > 0)
+    add_block (list, &count, filenr, &pos, temp, PADDING);
+
+  while (pos + 128 < file[filenr]->size)
+    {
+
+      hblock = add_block (list, &count, filenr, &pos, 4, HEADER);
+      ((header_t *) hblock->data)->head = mp3_read (filenr, pos - 2, 2);
+      parse_header (stream, hblock->data);
+
+      iblock = add_block (list, &count, filenr, &pos, stream->isize, INF01);
+      ((info1_t *) iblock->data)->info = mp3_read (filenr,
+						   pos - stream->isize,
+						   iblock->size);
+      read_sideinfo_1 (stream, iblock->data);
+
+      block = add_block (list, &count, filenr, &pos, 
+			 hblock->data->length - 4 - stream->isize, PADDING);
+    }
+  stream->count = count;
+  fprintf (stderr, "Read %d blocks\n", count);
+  return (0);
 }
 
 /*

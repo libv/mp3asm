@@ -45,7 +45,7 @@ typedef struct file_t
 {
   char *name;
   unsigned char *head;
-  long size;
+  unsigned long size;
   FILE *file;
   
 } file_t; 

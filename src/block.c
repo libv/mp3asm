@@ -151,6 +151,7 @@ split_block (block_t **list, int *count, int *count2, int *pos)
   count2++;
   return (block2);
 }
+
 data_t *
 new_data (block_t *next, block_t *headp)
 {
@@ -158,5 +159,314 @@ new_data (block_t *next, block_t *headp)
   block->data->next = next;
   block->data->headp = headp;
   return (data);
+}
+
+/*
+ *  basic block functions
+ */
+int
+is_padding (mp3_block_t *block)
+{
+  if (!(block->type & NOT_PAD))
+    return (1);
+  return (0);
+}
+
+int
+is_head (mp3_block_t *block)
+{
+  if (!(block->type & TYPE))
+    return (1);
+  return (0);
+}
+
+int
+is_v1 (mp3_block_t *block)
+{
+  if (!(block->type & SEC))
+    return (1);
+  return (0);
+}
+
+int
+is_mono (mp3_block_t *block)
+{
+  if (!(block->type & THI))
+    return (1);
+  return (0);
+}
+
+int
+is_head11 (mp3_block_t *block)
+{
+  if (block->type == 0x80)
+    return (1);
+  return (0);
+}
+
+int
+is_head12 (mp3_block_t *block)
+{
+  if (block->type == 0x88)
+    return (1);
+  return (0);
+}
+
+int
+is_head21 (mp3_block_t *block)
+{
+  if (block->type == 0x90)
+    return (1);
+  return (0);
+}
+
+int
+is_head22 (mp3_block_t *block)
+{
+  if (block->type == 0x98)
+    return (1);
+  return (0);
+}
+
+int
+is_data (mp3_block_t *block)
+{
+  if (block->type == 0xa0)
+    return (1);
+  return (0);
+}
+
+int
+is_id3 (mp3_block_t *block)
+{
+  if ((block->type & ID3) == ID3)
+    return (1);
+  return (0);
+}
+
+int
+is_id3v1 (mp3_block_t *block)
+{
+  if (block->type == 0xc0)
+    return (1);
+  return (0);
+}
+
+int
+is_id3v2 (mp3_block_t *block)
+{
+  if (block->type == 0xd0)
+    return (1);
+  return (0);
+}
+
+int
+is_xvbr (mp3_block_t *block)
+{
+  if (block->type == 0xe0)
+    return (1);
+  return (0);
+}
+
+/* mp3_block_t->error */
+
+int
+is_clean (mp3_block_t *block)
+{
+  if (!block->error)
+    return (1);
+  return (0);
+}
+
+int
+is_error (mp3_block_t *block)
+{
+  if (!block->error)
+    return (0);
+  return (1);
+}
+
+int
+is_checked (mp3_block_t *block)
+{
+  if (!(block->error & CHECK))
+    return (0);
+  return (1);
+}
+
+int
+is_repair (mp3_block_t *block)
+{
+  if (!(block->error & REP))
+    return (0);
+  return (1);
+}
+
+
+int
+is_shift (mp3_block_t *block)
+{
+  if (!(block->error & SHIFT))
+    return (0);
+  return (1);
+}
+
+int
+is_shift_local (mp3_block_t *block)
+{
+  if (!(block->error & SHIFT_LOC))
+    return (0);
+  return (1);
+}
+
+int
+is_lap (mp3_block_t *block)
+{
+  if (!(block->error & LAP))
+    return (0);
+  return (1);
+}
+
+int
+is_lap_local (mp3_block_t *block)
+{
+  if (!(block->error & LAP_LOC))
+    return (0);
+  return (1);
+}
+
+int
+is_bad (mp3_block_t *block)
+{
+  if (!(block->error & BAD))
+    return (0);
+  return (1);
+}
+
+/* setting the type */
+
+void
+set_padding (mp3_block_t *block)
+{
+  block->type = PAD;
+}
+
+void
+set_head11 (mp3_block_t *block)
+{
+  block->type = 0x80;
+  block->data = tmalloc (head11_t);
+}
+
+void
+set_head12 (mp3_block_t *block)
+{
+  block->type = 0x88;
+  block->data = tmalloc (head12_t);
+}
+
+void
+set_head21 (mp3_block_t *block)
+{
+  block->type = 0x90;
+  block->data = tmalloc (head21_t);
+}
+
+void
+set_head22 (mp3_block_t *block)
+{
+  block->type = 0x98;
+  block->data = tmalloc (head22_t);
+}
+
+void
+set_data (mp3_block_t *block)
+{
+  block->type == 0xa0;
+  block->data = tmalloc (data_t);
+}
+
+void
+set_id3v1 (mp3_block_t *block)
+{
+  block->type == 0xc0;
+  block->data = tmalloc (id3v1_t);
+}
+
+void
+set_id3v2 (mp3_block_t *block)
+{
+  block->type == 0xd0;
+  block->data = tmalloc (id3v2_t);
+}
+
+void
+set_xvbr (mp3_block_t *block)
+{
+  block->type = 0xe0;
+  block->data = tmalloc (xvbr_t);
+}
+
+/* error setting */
+
+void
+set_clean (mp3_block_t *block)
+{
+  block->error = 0x00;
+}
+
+void
+set_error (mp3_block_t *block)
+{
+  block->error |= ERR;
+}
+
+void
+set_checked (mp3_block_t *block)
+{
+  block->error |= CHECK;
+}
+
+void
+set_repair (mp3_block_t *block)
+{
+  block->error |= REP;
+}
+
+void
+set_shift (mp3_block_t *block)
+{
+  set_error (block);
+  block->error |= SHIFT
+}
+
+void
+set_shift_local (mp3_block_t *block)
+{
+  set_error (block);
+  set_shift (block);
+  block->error = SHIFT_LOC;
+}
+
+void
+set_lap (mp3_block_t *block)
+{
+  set_error (block);
+  block->error = LAP;
+}
+
+void
+set_lap_local (mp3_block_t *block)
+{
+  set_error (block);
+  set_lap (block);
+  block->error = LAP_LOC;
+}
+
+void
+set_bad (mp3_block_t *block)
+{
+  set_error (block);
+  block->error = BAD;
 }
 
