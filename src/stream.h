@@ -29,12 +29,15 @@
 /* block_t->type */
 #define PADDING 0x00
 #define HEADER 0x01
-#define SIDEINFO1 0x02
-#define SIDEINFO2 0x03
+#define INFO1 0x02
+#define INFO2 0x03
 #define DATA 0x04
 #define ID3V1 0x05
 #define ID3V2 0x06
-#define BAD 0xff
+#define BAD 0x80
+#define OVERLAPPING 0x81
+#define OVERLAP 0xfe
+#define BAD_OVERLAP 0xff
 
 typedef struct block_t
 {
@@ -57,7 +60,7 @@ typedef struct header_t
   block_t *datap; /* place in data struct */
 } header_t;
 
-/* type = SIDEINFO1 */
+/* type = INFO1 */
 typedef struct info1_t
 {
   guint16 backref; /* actual backref in the sideinfo */
@@ -66,7 +69,7 @@ typedef struct info1_t
   unsigned char *info; /* 17-32 bytes of sideinfo */
 } info1_t;
 
-/* type = SIDEINFO2 */
+/* type = INFO2 */
 typedef struct info2_t
 {
   guint8 backref; /* actual backref in the sideinfo */
@@ -75,12 +78,20 @@ typedef struct info2_t
   unsigned char *info; /* 9-17 bytes of sideinfo */
 } info2_t;
 
-/* type = DATA */
+/* type = DATA/OVERLAPPING/BAD */
 typedef struct data_t
 {
-  block_t *next;  /* place in data struct */
-  block_t *headp; /* place in data struct */
+  block_t *next;  
+  block_t *headp; 
 } data_t;
+
+/* type = OVERLAP/BAD_OVERLAPPED */
+typedef struct overlap_t
+{
+  block_t *next;  
+  block_t *head1p;
+  block_t *head2p;
+} overlap_t;
 
 /* type = ID3V1 */
 typedef struct id3v1_t

@@ -1,6 +1,12 @@
 Changelog for mp3asm:
 ---------------------
 
+0.2.0:
+------
+  - still implementing a decent parser
+  - implementing basic block tools
+
+
 Todo:
  - flags for changing headers
  - add/remove crc

@@ -31,6 +31,12 @@ void *tmalloc (size_t size);
 void *trealloc (void *ptr, size_t size);
 unsigned char *mp3_read (int filenr, long pos, size_t size);
 
+/* blocks.c */
+static void print_block (block_t *block);
+block_t *init_block (int filenr, long pos, guint16 size, unsigned char type);
+block_t *add_block (block_t **stream, int *count, int filenr,
+		    unsigned long *pos, guint16 size, unsigned char type);
+block_t *split_block (block_t **list, int *count, int *count2, int *pos);
 /*
  * init_stream:
  *
@@ -79,74 +85,6 @@ samestream (unsigned char head1[4], unsigned char head2[4])
 }
 
 /*
- * search header: searches for 3 simmilar possible headers
- *                writes the header to the file struct & returns 0
- *                
- *  
- */
-/* should rewrite it to search for a header, read the framelength & then get
- * the next header */
-int
-search_first_header (int filenr)
-{
-  int i = -3, count = 0, k, temp;
-  unsigned char head[4];
-  
-  typedef struct header_t
-  {
-    unsigned char head[4];
-    int count;
-    int pos;
-  } header_t;
-  
-  header_t *heads = NULL;
-  
-  if (fseek(file[filenr]->file, 0, SEEK_SET))
-    return (-1);;
-  memset (head, 0, 4);
-  
-  while (1)
-    switch (temp = getc(file[filenr]->file))
-      {
-      case EOF:
-	if (feof (file[filenr]->file))
-	  return (-2);
-	return (-1);
-      default:
-	head[0] = head[1];
-	head[1] = head[2];
-	head[2] = head[3];
-	head[3] = temp;
-	if (head[0] == 0xff && is_header(head))
-	  {
-	    for (k = 0; k < count; k++)
-	      if (samestream (head, heads[k].head))
-		{
-		  if (heads[k].count == 3)
-		    {
-		      file[filenr]->head = tmalloc(4 * sizeof (unsigned char));
-		      memcpy (file[filenr]->head, heads[k].head, 4);
-		      temp = heads[k].pos;
-		      free (heads);
-		      return (temp);
-		    }
-		  heads[k].count++;
-		  break;
-		}
-	    if (k == count)
-	      {
-		count++;
-		heads = trealloc (heads, count * sizeof (header_t));
-		memcpy (heads[k].head, head, 4);
-		heads[k].count = 1;
-		heads[k].pos = i;
-	      }
-	  }
-	i++;
-      }
-}
-
-/*
  *   1st index:  0 = "MPEG 1.0",   1 = "MPEG 2.0"
  *   2nd index:  0 = "Layer 3",   1 = "Layer 2",   2 = "Layer 1"
  *   3rd index:  bitrate index from frame header
@@ -167,11 +105,136 @@ static const unsigned freqtab[9] =
         {44100, 48000, 32000, 22050, 24000, 16000, 11025, 12000, 8000};
 
 /*
+ * returns framesize for the header searchin algoritm
+ * 
+ */
+
+static int 
+get_framesize (unsigned char head[4])
+{
+  int version=0, freq=0, layer=0, samples=0, kbps, length;
+
+  switch (head[1] & 0x18)
+    { /* mpeg version */
+    case 0x00:
+      version = 2; /* mpeg 2.5 */
+      freq = freqtab[6 + ((0x0c & head[2]) >> 2)];
+      break;
+    case 0x10:
+      version = 2; /* mpeg 2 */
+      freq = freqtab[3 + ((0x0c & head[2]) >> 2)];
+      break;  
+    case 0x18:
+      version = 1; /* mpeg 1 */
+      freq = freqtab[(0x0c & head[2]) >> 2];
+      break;
+    }
+  
+  switch (head[1] & 0x06)
+    { /* layer */
+    case 0x06:
+      layer = 1;
+      samples = 384;
+      break;
+    case 0x04:
+      layer = 2;
+      samples = 1152;
+      break;  
+    case 0x02:
+      layer = 3;
+      samples = (version == 1) ? 1152 : 576;
+      break; 
+    }
+
+  kbps = kbpstab[version - 1][layer - 1][(0xf0 & head[2]) >> 4];
+  
+  length = (kbps * 125 * samples) / freq;
+  
+  if (0x02 & head[2])
+    {
+      if (layer == 1)
+        length += 4;
+      else
+	length++;
+    }
+  return (length);
+}
+
+/*
+ * actual header finding alg
+ *
+ */
+
+static int
+search_first_header (int filenr, int checks)
+{
+  int pos = -3, pos1, i, count = 0, temp;
+  unsigned char head[4], head1[4];
+  
+  
+  if (fseek(file[filenr]->file, 0, SEEK_SET))
+    return (-1);
+  memset (head, 0, 4);
+  
+  while (1)
+    /* main loop - looks for possible valid headers - exited only by returns */
+    {
+      fseek (file[filenr]->file, pos + 3, SEEK_SET);
+      /* if this fails the next check will catch it */
+      if ((temp = getc(file[filenr]->file)) == EOF)
+	{
+	  if (feof (file[filenr]->file))
+	    return (-2);
+	  return (-1);
+	}
+      head[0] = head[1];
+      head[1] = head[2];
+      head[2] = head[3];
+      head[3] = temp;
+
+      if (head[0] == 0xff && is_header(head))
+	{
+	  count = 1;
+	  pos1 = pos;
+	  memcpy (head1, head, 4);
+
+	  while (1)
+	    {
+	      pos1 += get_framesize(head1);
+	      fseek (file[filenr]->file, pos1, SEEK_SET);
+	      for (i=0; i<4; i++)
+		{
+		  if ((temp = getc(file[filenr]->file)) == EOF)
+		    {
+		      if (feof (file[filenr]->file))
+			return (-2);
+		      return (-1);
+		    }
+		  head1[i] = temp;
+		}
+	      if (samestream (head, head1))
+		count++;
+	      else
+		break;
+	      if (count == checks)
+		{
+		  file[filenr]->head = tmalloc(4 * sizeof (unsigned char));
+		  memcpy (file[filenr]->head, head, 4);
+		  return (pos);
+		}
+	    }
+	}
+      pos++;
+    }
+  
+}
+
+/*
  * parse_static_stream_inf: parses the first header and puts the neccessary
  *                          inf in the stream struct
  */
 static void
-parse_first_header (stream_t *stream,unsigned char *head)
+parse_first_header (stream_t *stream, unsigned char *head)
 {
   switch (head[1] & 0x18) {/* mpeg version */
   case 0x00:
@@ -258,7 +321,7 @@ read_sideinfo_1 (stream_t *stream, info1_t *sideinfo)
   int total, temp;
 
   sideinfo->backref = sideinfo->info[0] << 1 | sideinfo->info[1] >> 7;
-  /* fprintf (stderr, "backref: %d\n", sideinfo->backref); */
+  fprintf (stderr, "backref: %d\n", sideinfo->backref);  
   /* calculate dsize */
   if (stream->isize == 32) /* mpeg 1 stereo */
     {
@@ -314,7 +377,6 @@ read_sideinfo_2 (stream_t *stream, info2_t *sideinfo)
   sideinfo->dsize = total;
 }
 
-
 /*
  * open_stream: 
  *
@@ -322,127 +384,303 @@ read_sideinfo_2 (stream_t *stream, info2_t *sideinfo)
 int
 open_stream (stream_t *stream, int filenr)
 {
-  int temp, count = 0;
+  int temp, count = -1;
   unsigned long pos = 0;
   block_t *hblock, *iblock, *block;
+  block_t **list;
   
   stream = init_stream ();
-  if ((temp = search_first_header (filenr)) < 0)
+  list = stream->list
+
+  if ((temp = search_first_header (filenr, 3)) < 0)
     return (temp);
   parse_first_header (stream, file[filenr]->head);
   stream->head1 = file[filenr]->head[1];
 
-  if (temp > 0) /* skip the stuff in front of the frame, mark it as padding */
+  if (temp > 0)
+    /* Theres crap in front of the first header*/
+    add_block (list, &count, filenr, &pos, temp, PADDING);
+
+  while (pos + 128 < file[filenr]->size)
+    /* dirty hack  implement samestream header search */
     {
-      fprintf (stderr, "temp = %d\n", temp);
-      stream->list = tmalloc (sizeof(block_t *)); /* prep for first block */
-      block = stream->list[0] = tmalloc (sizeof(block_t));
-      
-      block->filenr = filenr;
-      block->pos = 0;
-      block->size = temp;
-      block->type = PADDING;
-      block->data = NULL;
-      count++; /* prep for header */
-      pos = temp;
-    }
-  while (pos + 128 < file[filenr]->size) /* dirty hack  implement samestream header search */
-    {
-      stream->list = trealloc(stream->list, (count + 1)*sizeof(block_t *));
-      hblock = stream->list[count] = tmalloc (sizeof(block_t));
-      hblock->filenr = filenr;
-      hblock->pos = pos;
-      hblock->type = HEADER;
-      hblock->size = 4;
-      hblock->data = tmalloc(sizeof(header_t));
-      pos += 2; /* implement check here!!! */
-      ((header_t *) hblock->data)->head = mp3_read (filenr, pos, 2);
+      /* header */
+      hblock = add_block (list, &count, filenr, &pos, 4, HEADER);
+      ((header_t *) hblock->data)->head = mp3_read (filenr, pos - 2, 2);
       parse_header (stream, hblock->data);
-      pos += 2;
-      /* next block, sideinf */
-      count++;
-      stream->list = trealloc(stream->list, (count + 1)*sizeof(block_t *));
-      iblock = stream->list[count] = tmalloc (sizeof(block_t));
-      iblock->filenr = filenr;
-      iblock->pos = pos;
-      iblock->type = SIDEINFO1;
-      iblock->size = stream->isize;
-      iblock->data = tmalloc (sizeof(info1_t));
-      ((info1_t *) iblock->data)->info = mp3_read (filenr, pos, iblock->size);
+
+      /* sideinfo */
+      iblock = add_block (list, &count, filenr, &pos, stream->isize, INF01);
+      ((info1_t *) iblock->data)->info = mp3_read (filenr,
+						   pos - stream->isize,
+						   iblock->size);
       read_sideinfo_1 (stream, iblock->data);
-      pos += stream->isize;
-      /* put in padding, so that it can be filled later */
-      count++;
-      stream->list = trealloc(stream->list, (count + 1)*sizeof(block_t *));
-      block = stream->list[count] = tmalloc(sizeof(block_t));
-      block->filenr = filenr;
-      block->pos = pos;
-      block->type = PADDING;
-      block->size = ((header_t *) hblock->data)->length - 4 - stream->isize;
-      block->data = NULL;
-      pos = block->pos + block->size;
+
+      /* padding - filled in later */
+      block = add_block (list, &count, filenr, &pos, 
+			 hblock->data->length - 4 - stream->isize, PADDING);
       
-      /* find out where the data is */
       if (((info1_t *) iblock->data)->dsize)
 	{
+	  /* Lets find out where the data is shall we */
+
 	  int dsize = ((info1_t *) iblock->data)->dsize;
 	  int backref = ((info1_t *) iblock->data)->backref;
+	  int offset = backref - dsize;
+	  unsigned char type = DATA;
 	  int count2 = count;
-	  block_t *datablock = NULL;
-	  while (backref > 0) /* goto where the first data block should be */
+	  block_t *dblock = NULL;
+
+	  if (offset > 0)
 	    {
-	      count2 -= 3;
-	      block = stream->list[count2];
-	      if (block->type != PADDING) /* write up some code here */
-		fprintf (stderr, "BAD stream formatting, bad backref\n");
-	      backref -= block->size;
+	      if (offset > block->size)
+		/* the data cannot go beyond the next frame header */
+		{
+		 fprintf (stderr, "BAD stream formatting,"
+			       "size overflow\n"); 
+		 block->type = type = BAD;
+		 block->data = new_data (NULL, hblock);
+		 dsize = backref;
+		}
+	      else
+		{
+		  if (offset < block->size)
+		    block = split_block (list, count, count, offset);
+		  block->type = DATA;
+		  block->data = new_data (NULL, hblock);
+		  dsize -= offset;
+		}
+	      offset = 0;
 	    }
-	  if (backref < 0)
+
+	  while (dsize > 0) /* goto where the new data should begin */
 	    {
-	      int i;	  
-	      count++;
-	      stream->list = trealloc (stream->list, count*sizeof(block_t *));
-	      for (i = count - 1; i > count2; i--)
-		stream->list[i + 1] = stream->list[i];
-	      datablock = stream->list[count2 + 1] = tmalloc(sizeof(block_t));
-	      datablock->type = PADDING;
-	      datablock->filenr = filenr;
-	      datablock->pos = block->pos - backref;
-	      datablock->size = block->size + backref;
-	      block->size = - backref;
-	      datablock->data = NULL;
-	      block = datablock;
-	      backref = 0;
-	      datablock = NULL;
+	      if (count2 > 0)
+		{
+		  int size;
+		  count2--;
+		  block = list[count2];
+		  size = block->size;
+
+		  switch (block->type)
+		    {
+		    case HEADER:
+		    case INF1:
+		    case INF2:
+		      break; 
+		    case PADDING:
+		      if (offset)
+			{
+			  if (-offset < size)
+			    block = split_block (list, &count, &count2,
+						 size + offset); 
+			  offset -= size;
+			}
+		      else
+			{
+			  if (size > dsize)
+			    {
+			      block = split_block (list, &count, &count2,
+						   size - dsize);
+			      dsize = 0;
+			    }
+			  else
+			    dsize -= size;
+			  
+			  block->type = type;
+			  if (dblock)
+			    {
+			      if (type > 0xf0)
+				memcpy (block->data, dblock->data,
+					sizeof (overlap_t));
+			      else
+				memcpy (block->data, dblock->data,
+					sizeof (data_t));
+			    }
+			  block->data->next = dblock;
+			  dblock = block;
+			}
+		      break;
+		    case DATA:
+		    case OVERLAPPING:
+		    case BAD:
+		      if (offset)
+			{
+			  if (-offset < size)
+			    {
+			      split_block (list, *count, count2,
+					   size + offset); 
+			      count2++;
+			    }
+			  offset -= size;
+			}
+		      else
+			{
+			  
+			  
+			}
+		      type = OVERLAPPING;
+		      fprintf (stderr, "BAD stream formatting,"
+			       "overlapping data\n");
+		      break;
+		      
+		    case OVERLAP:
+		    case BAD_OVERLAP:
+		      fprintf(stderr, "WTF? Multiple overlapped files???"
+			      "omg!");
+		    default:
+		      break;
+		    }
+		}
+	      else
+		{
+		  dsize -= backref;
+		  backref = 0;
+		  fprintf (stderr, "BAD stream formatting, first frame"
+			   "has a backref! Invalidating data!\n");
+		  type = BAD;
+		  while ((list[count2]->type == HEADER) ||
+			 (list[count2]->type == INF1) ||
+			 (list[count2]->type == INF2))
+		    count++;
+		}
+	    }
+	  block = list[count2];
+	  if (type == OVERLAPPING)
+	    {
+	  switch (type)
+	    {
+	    case OVERLAPPING:
+	      /* first, set the other datablocks to overlapping */
+	      dblock = block->data->headp->data->datap;
+	      while (dblock)
+		{
+		  dblock->type = OVERLAPPING;
+		  print_block (dblock);
+		  dblock = dblock->next;
+		}
+	      /* this is the first frame of the overlapping
+		 so make new block that is the actual overlap */
+	      if (backref < 0) /* not on a frame boundary */
+		{
+
+		  count++;
+		  stream->list = trealloc (stream->list, (count + 1)*sizeof(block_t *));
+		  for (i = count - 1; i > count2; i--)
+		    stream->list[i + 1] = stream->list[i];
+		  dblock = stream->list[++count2] = tmalloc(sizeof(block_t));
+		  dblock->type = OVERLAPPED;
+		  dblock->filenr = filenr;
+		  dblock->pos = block->pos - backref;
+		  
+		  dblock->size = block->size + backref;
+		  block->size = - backref;
+		  
+		  dblock->data = tmalloc (sizeof(overlap_t));
+		  dblock->data->next = block->data->next;
+		  block->data->next = dblock;
+		  print_block (block);
+		  dblock->data->head1p = block->data->headp;
+		  dblock->data->head2p = hblock;
+		  hblock->data->datap = dblock;
+		  block = dblock;
+		  backref = 0;
+		}
+	      else /* can only be backref == 0 | on a block boundary */
+		{
+		  void *temp;
+		  block->type = OVERLAPPED;
+		  temp = block->data;
+		  block->data = tmalloc (sizeof(overlap_t));
+		  block->data->next = temp->next;
+		  block->data->head1p = temp->headp;
+		  block->data->head2p = hblock;
+		  free (temp);
+		}
+	      dsize -= block->size;
+	      
+	      /* check if there r more datablocks overlapped
+	       * normally this shouldnt be run at all, or only once
+	       * but in the highly unlikely case of that actually happening... */
+	      while (block->type != PADDING)
+		{
+		  switch (block->type)
+		    {
+		    case DATA:
+		      
+		      while (block->data->next)
+			{
+			  void *temp;
+			  block = block->data->next;
+			  temp = block->data;
+			  block->type = OVERLAPPED;
+			  block->data = tmalloc(sizeof(overlap_t));
+			  block->data->next = temp->next;
+			  block->data->head1p = temp->headp;
+			  block->data->head2p = hblock;
+			  free (temp);
+			  dsize -= block->size;
+			}
+		  block = stream->list[++count2];
+		}
+	      /* now find the next padding, or if theres still some data
+		 from yet another frame there */
+	      /* find out where the block is */
+	      count2 = count;
+	      while (block != stream->list[count2])
+		count2--;
+	      block = stream->list[++count2];
+	      while (block->type != PADDING)
+
+
+
+
+	      break;
+	    case BAD:
+	      /* only happens when first frame has a backref
+	       so type set to BAD will suffice */
+	      break;
+	    case DATA:
+	      /* datablocks rnt adjacent, so padding is in between */
+	      if (backref < 0)
+		{
+		  int i;	  
+		  count++;
+		  stream->list = trealloc (stream->list, (count + 1)*sizeof(block_t *));
+		  for (i = count - 1; i > count2; i--)
+		    stream->list[i + 1] = stream->list[i];
+		  dblock = stream->list[count2 + 1] = new_block (filenr, block->pos - backref, block->size + backref, PADDING);
+		  block->size = - backref;
+		  block = dblock;
+		  backref = 0;
+		  dblock = NULL;
+		}
+	      break;
 	    }
 	  while (1) 
 	    {
-	      block->type = DATA;
+	      block->type = type;
 	      block->data = tmalloc(sizeof(data_t));
 	      ((data_t *) block->data)->headp = hblock;
 	      ((data_t *) block->data)->next = NULL;
-	      if (datablock)
-		((data_t *) datablock->data)->next = block;
+	      if (dblock)
+		((data_t *) dblock->data)->next = block;
 	      else
 		((header_t *) hblock->data)->datap = block;
-	      datablock = block;
+	      dblock = block;
 	      dsize -= block->size;
+	      if (dsize == 0)
+		break;
 	      if (dsize < 0)
 		/* shift higher blocks and insert a new PADDING block */
 		{
 		  int i;
-		  
 		  count++;
-		  stream->list = trealloc (stream->list, count*sizeof(block_t *));
+		  stream->list = trealloc (stream->list, (count + 1)*sizeof(block_t *));
 		  for (i = count - 1; i > count2; i--)
 		    stream->list[i + 1] = stream->list[i];
-		  datablock->size += dsize;
-		  datablock = stream->list[count2 + 1] = tmalloc(sizeof(block_t));
-		  datablock->type = PADDING;
-		  datablock->filenr = filenr;
-		  datablock->pos = block->pos + block->size;
-		  datablock->size = -dsize;
-		  datablock->data = NULL;
+		  dblock->size += dsize;
+		  dblock = stream->list[count2 + 1] = new_block(filenr, block->pos + block->size, -dsize, PADDING);
 		  dsize = 0;
 		  break;
 		}
@@ -452,12 +690,12 @@ open_stream (stream_t *stream, int filenr)
 		    fprintf(stderr, "Bad stream formatting, frame data overflow\n");
 		  break; /* add code here */
 		}
+	      fprintf (stderr, "count: %d\n", count);
 	      block = stream->list[count2 += 3];
-	      if (block->type != PADDING)
-		fprintf(stderr, "Bad stream formatting, frame %d shouldve been padding!\n", count2);
+	      if (block->type != PADDING) /* shouldnt happen */
+		fprintf(stderr, "Bad stream formatting, block %d shouldve been padding!\n", count2);
 	    }
 	  stream->framecount++;
-	  fprintf (stderr, "framecount: %d\n", stream->framecount);
 	}
       count++;
     }

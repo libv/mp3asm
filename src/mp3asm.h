@@ -34,7 +34,7 @@
 
 typedef struct mp3_t
 {
-  struct mp3_gui_t *gui;
+  struct mp3gui_t *gui;
   struct stream_t *stream;
 } mp3_t;
 

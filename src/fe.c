@@ -98,13 +98,13 @@ create_main_window (void)
   gtk_window_set_policy ((GtkWindow *) gui->window, TRUE, TRUE, FALSE);
   gtk_window_set_default_size ((GtkWindow *) gui->window, 200, 200);
 
-  gui->main_box = gtk_vbox_new (0, 0);
-  gtk_container_add (GTK_CONTAINER (gui->window), gui->main_box);
-  gtk_widget_show (gui->main_box);
+  gui->mainbox = gtk_vbox_new (0, 0);
+  gtk_container_add (GTK_CONTAINER (gui->window), gui->mainbox);
+  gtk_widget_show (gui->mainbox);
 
   gui->menu = create_menu ();
   gtk_widget_show (gui->menu);
-  gtk_box_pack_start (GTK_BOX (main_box), gui->menu, FALSE, FALSE, 0);
+  gtk_box_pack_start (GTK_BOX (gui->mainbox), gui->menu, FALSE, FALSE, 0);
 
   gtk_widget_show (gui->window);
 }
@@ -127,61 +127,71 @@ fe_init (int *argc, char **argv[])
 }
 
 /*
+ *
+ *
+ */
+void
+gtk_mp3gui_scroll (GtkAdjustment *adjust, gpointer data)
+{
+
+}
+
+/*
  * fe_mp3gui_show: 
  *
  */
 void fe_mp3gui_show (mp3_t *mp3)
 {
-  gui_t *mgui = mp3->gui = tmalloc (sizeof (gui_t));
-
-  mgui->mbox = gtk_vbox_new (FALSE, 10);
+  mp3gui_t *mp3gui = mp3->gui = tmalloc (sizeof (mp3gui_t));
   
-  mgui->hruler = gtk_hruler_new ();
-  gtk_ruler_set_metric (GTK_RULER (mgui->hruler), GTK_PIXELS);
-  gtk_ruler_set_range (GTK_RULER (mgui->hruler), 7, 13, 0, 20);
-  gtk_box_pack_start (GTK_BOX (mgui->mbox), mgui->hruler, FALSE, FALSE, 0);
-  gtk_widget_show (mgui->hruler);
+  mp3->gui->mbox = gtk_vbox_new (FALSE, 10);
+  
+  mp3gui->hruler = gtk_hruler_new ();
+  gtk_ruler_set_metric (GTK_RULER (mp3gui->hruler), GTK_PIXELS);
+  gtk_ruler_set_range (GTK_RULER (mp3gui->hruler), 7, 13, 0, 20);
+  gtk_box_pack_start (GTK_BOX (mp3gui->mbox), mp3gui->hruler, FALSE, FALSE, 0);
+  gtk_widget_show (mp3gui->hruler);
 
-  mgui->area = gtk_drawing_area_new ();
-  gtk_drawing_area_size (GTK_DRAWING_AREA (mgui->area), 150, 100);
-  gtk_widget_show (mgui->area);
-  gtk_box_pack_start (GTK_BOX (mgui->mbox), mgui->area, TRUE, TRUE, 0);
-  gtk_widget_show (mgui->area);
+  mp3gui->area = gtk_drawing_area_new ();
+  gtk_drawing_area_size (GTK_DRAWING_AREA (mp3gui->area), 150, 100);
+  gtk_widget_show (mp3gui->area);
+  gtk_box_pack_start (GTK_BOX (mp3gui->mbox), mp3gui->area, TRUE, TRUE, 0);
+  gtk_widget_show (mp3gui->area);
 
-  waveview->adjust = gtk_adjustment_new (0.0, 0.0, 10.0, 1.0, 1.0, 5.0);
-  waveview->hscroll = gtk_hscrollbar_new (GTK_ADJUSTMENT (mgui->adjust));
-  gtk_box_pack_start (GTK_BOX (mgui-), mgui->hscroll, FALSE, FALSE, 0);
-  gtk_widget_show (waveview->hscroll);
+  (GtkObject *) mp3gui->adjust = gtk_adjustment_new (0.0, 0.0, 10.0, 1.0, 1.0, 5.0);
+  mp3gui->hscroll = gtk_hscrollbar_new (GTK_ADJUSTMENT (mp3gui->adjust));
+  gtk_box_pack_start (GTK_BOX (mp3gui->mbox), mp3gui->hscroll, FALSE, FALSE, 0);
+  gtk_widget_show (mp3gui->hscroll);
 
-  gtk_signal_connect (GTK_OBJECT (waveview->adjust),
-                      "value_changed", gtk_wave_view_scroll,
-                      GTK_OBJECT (waveview));
+  gtk_signal_connect (GTK_OBJECT (mp3gui->adjust),
+                      "value_changed", gtk_mp3gui_scroll,
+                      GTK_OBJECT (mp3gui));
 
-  gtk_signal_connect (GTK_OBJECT (waveview),
-                      "size_allocate", gtk_wave_view_resize_event,
-                      GTK_OBJECT (waveview));
+  /*gtk_signal_connect (GTK_OBJECT (mp3gui),
+                      "size_allocate", gtk_mp3gui_resize_event,
+                      GTK_OBJECT (mp3gui));
 
-  gtk_signal_connect (GTK_OBJECT (waveview->area),
+  gtk_signal_connect (GTK_OBJECT (mp3gui->area),
                       "realize", on_area_realize,
-                      GTK_OBJECT (waveview));
+                      GTK_OBJECT (mp3gui));
 
-  gtk_signal_connect (GTK_OBJECT (waveview->area),
+  gtk_signal_connect (GTK_OBJECT (mp3gui->area),
                       "expose_event", on_area_expose_event,
-                      GTK_OBJECT (waveview));
+                      GTK_OBJECT (mp3gui));
 
-  gtk_signal_connect (GTK_OBJECT (waveview->area),
+  gtk_signal_connect (GTK_OBJECT (mp3gui->area),
                       "button_press_event", GTK_SIGNAL_FUNC (gtk_wave_view_button_press_event),
-                      GTK_OBJECT (waveview));
+                      GTK_OBJECT (mp3gui));
 
-  gtk_signal_connect (GTK_OBJECT (waveview->area),
+  gtk_signal_connect (GTK_OBJECT (mp3gui->area),
                       "button_release_event", gtk_wave_view_button_release_event,
-                      GTK_OBJECT (waveview));
+                      GTK_OBJECT (mp3gui));
 
-  gtk_signal_connect (GTK_OBJECT (waveview->area),
+  gtk_signal_connect (GTK_OBJECT (mp3gui->area),
                       "motion_notify_event", GTK_SIGNAL_FUNC (gtk_wave_view_motion_notify_event),
-                      GTK_OBJECT (waveview));
+                      GTK_OBJECT (mp3gui));*/
 
-  gtk_widget_set_events (waveview->area, GDK_EXPOSURE_MASK |
+  gtk_widget_set_events (mp3gui->area, GDK_EXPOSURE_MASK |
                                          GDK_POINTER_MOTION_MASK |
                                          GDK_BUTTON_PRESS_MASK |
                                          GDK_BUTTON_RELEASE_MASK |

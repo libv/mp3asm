@@ -26,14 +26,14 @@
 
 #include <gtk/gtk.h>
 
-typedef struct mp3_gui_t
+typedef struct mp3gui_t
 {
-  GtkBox *mbox;
-  GtkDrawingArea *area;
-  GtkAdjustment *adjust;
-  GtkHScrollbar *hscroll;
-  GtkHRuler *hruler;
-} mp3_gui_t;
+  GtkWidget *mbox;
+  GtkWidget *area;
+  GtkWidget *adjust;
+  GtkWidget *hscroll;
+  GtkWidget *hruler;
+} mp3gui_t;
 
 typedef struct gui_t
 {
