@@ -1,9 +1,9 @@
 /*  mp3asm: an mp3 frameeditor.
  *
- *  parse.h : parses the command line input.
+ * 
  *
- *  Copyright (C) 2001  Luc Verhaegen (_Death_@Undernet(IRC))
- *                                    <dw_death_@hotmail.com>
+ *  Copyright (C) 2001-2003  Luc Verhaegen (_Death_@Undernet(IRC))
+ *                                    <_death_@mp3asm.com>
  *  Copyright (C) 1996-1997 Olli Fromme <olli@fromme.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -21,36 +21,39 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-
-#ifndef HAVE_PARSE_H
-#define HAVE_PARSE_H
-#include "stream.h"
-
-typedef struct input_t
+#include <stdlib.h>
+#include <errno.h>
+/*
+ * a barely cleaner malloc
+ */
+void *
+nmalloc (size_t size)
 {
-  char *name; /* name of the input file */
-  FILE *file;
-  
-  long startframe;
-  long readframes;
-  long endframe;
-  int use_id3;
-  stream_t *stream;
-} input_t;
+  void *ptr = malloc (size);
+  if (ptr)
+    return (ptr);
+  exit (ENOMEM);
+}
 
-extern input_t **input;
-
-typedef struct output_t
+/*
+ * a barely cleaner realloc
+ */
+void *
+nrealloc (void *ptr, size_t size)
 {
-  void *stream;
-  char *name; 
-  FILE *file;
-  
-  int write_crc;
-} output_t;
+  ptr = realloc (ptr, size);
+  if (ptr)
+    return (ptr);
+  exit (ENOMEM);
+}
 
-extern output_t *output;
+/*
+ *
+ */
+void
+nfree (void * ptr)
+{
+  free (ptr);
+}
 
-#endif /* HAVE_PARSE_H */
-
-/* EOF */ 
+/* EOF */

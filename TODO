@@ -1,0 +1,3 @@
+-- commandline_range: change start to begin, change stop to end.
+-- ensure that range_count is always >= 0 (not -1)
+-- Check commandline rigourously. Devise decent tests to achieve this.

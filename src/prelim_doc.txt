@@ -1,0 +1,81 @@
+Mp3asm: design ideas:
+*******************
+
+v0.0.1: 19/02/02 21.20: added 'q'
+v0.0.0: 18/02/02 21.30
+
+
+
+
+Command line:
+-------------------
+
+Multiple input means 1 output
+Multiple output means 1 input
+
+unknown flag or option: show help
+-h
+--help
+--version
+
+- verbosity:
+'v', incremental; tied to #define's
+    VERBOSE_...
+ 	    QUIET
+ 	    BRIEF
+ 	    NORMAL
+ 	    NOISY
+ 	    TERRIBLE 
+'q' decrease verbosity
+- allow for mp3asm to dynamically change the bitrate to optimise the stream
+  proposed flag: 'c'
+  Add a warning: As this will very likely change a cbr file into a vbr one
+  Not specified means: add empty frame to encompass the data
+
+- analyse the files -- no output
+  very verbose, check for as much errors as the program knows of
+  give a statistic; if cbr: only bitrate; else; avg bitrate, avg variance of bitrate
+	         plus; actual bitrate: size of the data extrapolated to bitrate + avg variance
+
+- strictly CBR: will split a file when theres a bitrate change; will ask to continue if a bitrate changes too often
+  proposed flag: 's'
+  
+- id3v2:
+  reserve 'i' for id3v2
+
+- overlapping:
+  'l'
+  when u split up a file: make sure theres is a generous overlap
+  When combining the two with the +o flag, they will be put together like they were split
+  accomplished by:  - first datasizes
+	            - when this matches, check data byte per byte
+
+- force
+  'f'
+  force overwriting of existing files
+- filenames:
+
+  <filename> <flags> <range>
+
+  filename: anything that is not a flag or a range
+	    Do check for special characters which shouldnt be allowed in a filename
+	    Append them with \
+
+  flags: any flag proper for a file
+	 - 't' = use the tag on this file: only once
+	 
+	 
+  ranges: single numbers, possible preceded by '!'
+                or ranges; like with iptables; :500 600:800 900:
+		meaning; everything before 500 & 500 600 -> 800 and everything from 900
+                this will be combined internally
+
+PROGRAM:
+	- if a stream is 2 incompatible streams; split them
+	- error: standard behaviour = empty both frames
+		 when id3v2 is implemented: put the errors in it; with the position
+	- use the header alg of the v0.1.3
+	- use the circular buffers of v0.1.3 -- this is imho a good, fast implementation
+	- reserver volume change, error correction, bitrate changing (by dropping data)
+	  crc adding etc for gui version:
+	  crc removal should be part of this, as should stream optimisation.

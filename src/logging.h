@@ -1,9 +1,9 @@
 /*  mp3asm: an mp3 frameeditor.
  *
- *  stream.c: readin, writing & sorting of streams
+ * 
  *
- *  Copyright (C) 2001  Luc Verhaegen (_Death_@Undernet(IRC))
- *                                    <dw_death_@hotmail.com>
+ *  Copyright (C) 2001-2003  Luc Verhaegen (_Death_@Undernet(IRC))
+ *                                    <_death_@mp3asm.com>
  *  Copyright (C) 1996-1997 Olli Fromme <olli@fromme.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -20,34 +20,25 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#ifndef HAVE_LOGGING_H
+#define HAVE_LOGGING_H
 
-#ifndef HAVE_STREAM_H
-#define HAVE_STREAM_H
+// Implements logging to stderr or file.
 
-typedef struct stream_t
-{
-  int maj_version;  /* 1, 2 */
-  int min_version;  /* 5 -> 2.5 */
-  int layer; /* 1, 2, 3 */
-  int samples; /* per frame */
-  int isize; /* side info size */
-  int cbr; /* boolean */
-  float avkbps;
-  int freq;
-  int mode; /* 0 = stereo | 1 = joint stereo | 2 = dual chan | 3 = mono */
-  int crc;  
-  int private;
-  int copyright;
-  int original;
-  unsigned char *tag;
-  unsigned char *head;
-  
-  long count;
+#include <stdarg.h>
 
-  struct frame_t *first; /* pointer to first frame of the stream */
-  struct frame_t *last;
-} stream_t;
+#define LOG_QUIET 0
+#define LOG_BRIEF 1
+#define LOG_NORMAL 2
+#define LOG_NOISY 3
+#define LOG_LOUD 4
+#define LOG_DEBUG 5
 
-#endif /* HAVE_STREAM_H */
+#define LOG_MIN LOG_QUIET
+#define LOG_MAX LOG_LOUD
 
-/* EOF */
+// address space seperation is a good thing but not really feature of C
+void log_once (int level, char *format,  ...);
+void log_again (int level, char *format,  ...);
+
+#endif // LOGGING_H

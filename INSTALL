@@ -1,0 +1,10 @@
+  ./configure
+  make
+  make install
+
+Thats all thats to it
+Maybe you can do this first:
+  aclocal
+  automake
+  autoconf
+  

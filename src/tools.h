@@ -20,51 +20,11 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#include <stdlib.h>
-#include <sysexits.h>
-#include "logging.h"
-#include "input.h"
-// commandline.c
-int handle_commandline (int argc, char *argv[]);
+#ifndef HAVE_TOOLS_H
+#define HAVE_TOOLS_H
 
-// logging.c
-void log_init (void);
-// input.c
-void input_init (void);
-int input_open (void);
-int input_read (void);
-int input_frame_find_first (void);
-int input_segment (int empty);
+void *nmalloc (size_t size);
+void *nrealloc (void *ptr, size_t size);
+void nfree (void * ptr);
 
-/*
- * main
- *
- */ 
-int
-main (int argc, char *argv[])
-{ 
-  int return_value;
-
-  return_value = handle_commandline (argc, argv);
-  if (return_value == -1)
-    exit (EX_USAGE);
-  else if (!return_value) {
-    // here be dragons.
-    log_init ();
-    input_init ();
-
-    if (input_open ())
-      exit (EX_DATAERR);
-
-    return_value = input_read ();
-    if (return_value >= 0) {
-      if (input_frame_find_first ())
-	exit (EX_DATAERR);
-      input_segment (0);
-    }
-    
-  } 
-  exit (EX_OK);
-}
-
-// EOF
+#endif // TOOLS_H
