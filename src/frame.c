@@ -26,6 +26,7 @@
 #include "frame.h"
 #include "stream.h"
 
+
 /*
 #ifndef FRAME_DEBUG
 #define FRAME_DEBUG
@@ -134,6 +135,9 @@ search_first_header (buffer_t *buffer, stream_t *stream, int *count, header_t **
  	return(-1); /* fill the buffer */
 	
       case 1:
+	/*sprintf (log.buf, "offset %d: %c%c%c%c (%x%x%x%x)\n",i, head[0], head[1], head[2],
+head[3], head[0], head[1], head[2], head[3]);
+        print_log (0);*/
 	if (head[0] == 0xff && isheader(head))
 	  {
 	    for (k = 0; k < (*count); k++)
@@ -142,7 +146,7 @@ search_first_header (buffer_t *buffer, stream_t *stream, int *count, header_t **
 		  {
 		    sprintf (log.buf, "other header: %x.%x.%x.%x, count = %d\n", (*heads)[k].head[0], (*heads)[k].head[1], (*heads)[k].head[2], (*heads)[k].head[3], (*heads)[k].count);
 		    print_log (10);
-		    if ((*heads)[k].count == 3)
+		    if ((*heads)[k].count == 10)
 		      {
                         int temp = (*heads)[k].pos;
 			stream->head = tmalloc(4 * sizeof (unsigned char));

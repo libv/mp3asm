@@ -37,7 +37,7 @@ void
   
   if (!(mem = malloc(size)))
     {
-      fprintf(stderr, "Out of memory.");
+      fprintf(stderr, "tmalloc: Out of memory.\n");
       exit(ENOMEM);
     }
   return (mem);
@@ -54,7 +54,7 @@ void
   
   if (!(mem = calloc(n, size)))
     {
-      fprintf(stderr, "Out of memory.");
+      fprintf(stderr, "tcalloc: Out of memory.\n");
       exit(ENOMEM);
     }
   return (mem);
@@ -70,7 +70,7 @@ trealloc (void *ptr, size_t size)
   void *mem;
   if (!(mem = realloc(ptr, size)))
     {
-      fprintf(stderr, "Out of memory.");
+      fprintf(stderr, "trealloc: Out of memory.\n");
       exit(ENOMEM);
     }
   return (mem);
