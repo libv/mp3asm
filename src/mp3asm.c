@@ -20,177 +20,129 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
- 
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sysexits.h>
 #include "mp3asm.h"
-#include "parse.h"
-#include "utils.h"
-
-/* stream.c */
-
-extern stream_t *read_stream (FILE *file);
-extern void print_stream_inf(stream_t *stream, char *name);
-extern int write_stream (stream_t *stream, char **filename);
-extern int process_input (stream_t *stream, long startframe, long endframe);
-extern int process_output (stream_t *stream);
-extern void merge_streams (stream_t *streama, stream_t *streamb);
+#include "stream.h"
 
 /* utils.c */
+void *tmalloc (size_t size);
+void *trealloc (void *ptr, size_t size);
 
-extern void *tmalloc (size_t size);
-extern void *trealloc (void *ptr, size_t size);
-extern void print_std (int verb);
-extern int logopen (void);
-extern FILE *mp3ropen(const char *name);
-extern FILE *mp3wopen(const char *name);
+/* fe.c */ 
+extern void fe_init (int *argc, char **argv[]);
+extern void fe_main (void);
+extern void fe_update (void);
 
-/* parse.c */
+/* stream.c */
+extern int open_stream (stream_t *stream, int filenr);
 
-extern void parse_args (int argc, char *argv[]);
-
-int verbosity, inputs, quiet, info; 
-char *me;
-logfile_t log;
-input_t **input;
-output_t *output;
+int mp3s;
+mp3_t **mp3;
+int files;
+file_t **file;
 
 /*
- * getprogname: sets me to be the name of the executable.
+ * global_init:
  *
  */
-
-char *
-getprogname(const char *argv0)
-{
-  char *string;
-  (string = strrchr(argv0, '/')) ? string++ : (string = (char *)argv0);
-  return(string);
-}
-
-/*
- * new_input: adds and inits a new input
- *
- */
-
-void
-new_input (void)
-{
-  ++inputs;
-
-  input = trealloc(input, inputs*sizeof(input_t *));
-  input[inputs - 1] = tmalloc(sizeof(input_t));
-
-  input[inputs - 1]->name = NULL;
-  input[inputs - 1]->file = NULL;
-  input[inputs - 1]->startframe = 0;
-  input[inputs - 1]->readframes = 0;
-  input[inputs - 1]->endframe = 0;
-  input[inputs - 1]->use_id3 = 0;
-  input[inputs - 1]->stream = NULL;
-}
-
-/*
- * init_global:
- *
- */
-void
-init_global (char *progname)
-{
-  me = strcpy((char *)tmalloc(strlen(progname) + 1), progname);
-
-  log.name = NULL;
-  log.file = NULL;
-
-  verbosity = 0;
-  quiet = 0;
-
-  inputs = 0; 
-  new_input ();
-
-  output = (output_t *)tmalloc(sizeof(output_t));
-  output->name = NULL;
-  output->file = NULL;
-  output->stream = NULL;
-  output->write_crc = 0;  /* not used yet */
-}
-
-/*
- * open_inputs: opens & reads the inputstreams
- *
- */
-
 static void
-open_inputs (void)
+global_init (int argc, char *argv[])
 {
-  int i;
-
-  for (i = 0; i < inputs; ++i)
-    {
-      input[i]->file = mp3ropen (input[i]->name);
-      input[i]->stream = read_stream (input[i]->file);
-      if (!input[i]->stream)
-	{
-	  sprintf (log.buf, "bad input file specified\n");
-	  print_std (-1);
-	  exit (EX_NOINPUT);
-	}
-      print_stream_inf (input[i]->stream, input[i]->name);
-      fclose (input[i]->file);
-      input[i]->file = NULL;
-
-      process_input (input[i]->stream, input[i]->startframe, input[i]->endframe);
-    }
+  mp3 = NULL;
+  mp3s = 0;
+  file = NULL;
+  files = 0;
 }
+
 /*
- * open_inputs: opens & reads the inputstreams
+ * new_mp3: adds and loads a new mp3_t & stream
  *
  */
-
-static void
-write_output (void)
+static int
+new_mp3 (int filenr)
 {
-  int i;
+  stream_t *stream = NULL;
+  int temp;
 
-  if (!inputs)
+  fe_update ();
+
+  if ((temp = open_stream (stream, filenr)) < 0)
     {
-      sprintf (log.buf, "Please provide valid inputfiles...\n");
-      print_std (-1);
-      exit (EX_USAGE);
-    }
-    
-  for (i = 1; i < inputs; ++i)
-    {
-      /*fprintf (stderr, "%d\n", i);*/
-      if (input[i]->use_id3)
-	{
-	  if (input[i]->stream->tag)
-	    {
-	      input[0]->stream->tag = input[i]->stream->tag;
-	      input[i]->stream->tag = NULL;
-	    }
-	  else
-	    {
-	      sprintf (log.buf, "Unable to use a non-existent id3 tag.\n");
-	      print_std (0);
-	    }
-	}
-      else
-	free (input[i]->stream->tag);
+      if (temp == -1)
+	return (-1);
+      return (-2);
     }
   
-  output->stream = input[0]->stream;
-  input[0]->stream = NULL;
+  mp3s++;
+  mp3 = trealloc (mp3, mp3s * sizeof (mp3_t *));
+  mp3[mp3s - 1] = tmalloc (sizeof (mp3_t));
+  mp3[mp3s - 1]->stream = stream;
+  mp3[mp3s - 1]->gui = NULL;
+   
+  return (mp3s -1);
+}
 
-  for (i = 1; i < inputs; ++i)
-    {
-      merge_streams (output->stream, input[i]->stream);
-      input[i]->stream = NULL;
-    }
-  free (input);
-  inputs = 0;
+/*
+ * new_file: adds and inits a new input file
+ *
+ */
+static int
+new_file (char *filename)
+{
+  struct flock flock;
+  FILE *newfile;
+
+  if ((newfile = fopen (filename, "r")) < 0)
+    return (-1);
   
-  process_output (output->stream);
+  /* lock file, so that nothing happens to it while mp3asm uses it */
+  /* this way data can be specified in the struct by a long pointin to the offset */
+  fe_update ();
+  
+  flock.l_type = F_RDLCK;
+  flock.l_whence = SEEK_SET;
+  flock.l_start = 0;
+  flock.l_len = 0;
 
-  write_stream (output->stream, &output->name);
+  if (fcntl(fileno(newfile), F_SETLK, &flock) < 0)
+  return (-2);
+
+  files++;
+  file = trealloc(file, files * sizeof(file_t *));
+
+  file[files - 1] = tmalloc (sizeof(file_t));
+  file[files - 1]->name = strcpy(tmalloc(strlen(filename) + 1), filename);
+  file[files - 1]->file = newfile;
+  file[files - 1]->head = NULL;
+  fseek (file[files - 1]->file, 0, SEEK_END);
+  file[files - 1]->size = ftell (file[files - 1]->file);
+  return (files - 1);
+}
+
+/*
+ * open_input:
+ *
+ */
+int
+open_mp3 (char *filename)
+{
+  int filenr, temp; 
+  
+  if ((filenr = new_file(filename)) < 0)
+    return (filenr);
+  
+  if ((temp = new_mp3(filenr)) < 0)
+    {
+      if (temp == -1)
+	return (-3);
+      return (-4);
+    }
+  
+  return (0);
 }
 
 /*
@@ -200,18 +152,13 @@ write_output (void)
 int
 main(int argc, char *argv[])
 { 
-  init_global (getprogname(argv[0]));
+  global_init (argc, argv);
 
-  parse_args (argc, argv);
+  fe_init(&argc, &argv);
 
-  logopen ();
+  fe_main();
 
-  open_inputs ();
-
-  if (output->name)
-    write_output ();
-
-  exit (EX_OK);
+  exit(EX_OK);
 }
 
 /* EOF */

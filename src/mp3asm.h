@@ -21,33 +21,37 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-/* DEBUG STUFF - Enables extra output */
-
 #ifndef HAVE_MP3ASM_H
 #define HAVE_MP3ASM_H
 
 #include <stdio.h>
+/*
 #include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
 #include <argz.h>
-#include <ctype.h>
+#include <ctype.h>*/
 
-#define LOGBUFSIZE 4096
-
-typedef struct logfile_t
+typedef struct mp3_t
 {
-  char buf[4096];
-  char *name; /* name of the file to write to */
-  FILE *file;
-} logfile_t;
+  struct mp3_gui_t *gui;
+  struct stream_t *stream;
+} mp3_t;
 
-extern int verbosity;
-extern int quiet;
-extern int info; /* if set to 1 -> print header info on all files and exit */
-extern char *me; /* name of the executable */
-extern logfile_t log; /* file to log to */
-extern int inputs;
+extern int mp3s;
+extern mp3_t **mp3;
+
+typedef struct file_t
+{
+  char *name;
+  unsigned char *head;
+  long size;
+  FILE *file;
+  
+} file_t; 
+
+extern int files;
+extern file_t **file;
 
 #endif /* HAVE_MP3ASM_H */
 

@@ -1,6 +1,6 @@
 /*  mp3asm: an mp3 frameeditor.
  *
- *  parse.h : parses the command line input.
+ *  mp3asm.c: something should hold int main :)
  *
  *  Copyright (C) 2001  Luc Verhaegen (_Death_@Undernet(IRC))
  *                                    <dw_death_@hotmail.com>
@@ -20,37 +20,28 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#ifndef HAVE_MENU_H
+#define HAVE_MENU_H
 
+typedef void (*menucallback) (void *wid);
 
-#ifndef HAVE_PARSE_H
-#define HAVE_PARSE_H
-#include "stream.h"
+#define M_MENU 0
+#define M_NEWMENU 1
+#define M_END 2
+#define M_SEP 3
+#define M_MENUTOG 4
+#define M_MENUD 5
+#define M_NEWMENURIGHT 6
 
-typedef struct input_t
+typedef struct menu_t
 {
-  char *name; /* name of the input file */
-  FILE *file;
-  
-  long startframe;
-  long readframes;
-  long endframe;
-  int use_id3;
-  stream_t *stream;
-} input_t;
+   int type;
+   char *text;
+   menucallback callback;
+   int state;
+   int activate;
+} menu_t;
 
-extern input_t **input;
+#endif /* HAVE_MENU_H */
 
-typedef struct output_t
-{
-  void *stream;
-  char *name; 
-  FILE *file;
-  
-  int write_crc;
-} output_t;
-
-extern output_t *output;
-
-#endif /* HAVE_PARSE_H */
-
-/* EOF */ 
+/* EOF */

@@ -1,6 +1,6 @@
 /*  mp3asm: an mp3 frameeditor.
  *
- *  utils.h : some handly little functions.
+ *  mp3asm.c: something should hold int main :)
  *
  *  Copyright (C) 2001  Luc Verhaegen (_Death_@Undernet(IRC))
  *                                    <dw_death_@hotmail.com>
@@ -21,19 +21,29 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef HAVE_UTILS_H
-#define HAVE_UTILS_H
+#ifndef HAVE_FE_H
+#define HAVE_FE_H
 
-typedef struct buffer_t
+#include <gtk/gtk.h>
+
+typedef struct mp3_gui_t
 {
-  unsigned char *data;
-  int size;
-  int used;
-  int begin;
-  int end;
-  int eof;
-} buffer_t;
+  GtkBox *mbox;
+  GtkDrawingArea *area;
+  GtkAdjustment *adjust;
+  GtkHScrollbar *hscroll;
+  GtkHRuler *hruler;
+} mp3_gui_t;
 
-#endif /* HAVE_UTILS_H */
+typedef struct gui_t
+{
+  GtkWidget *window;
+  GtkWidget *menu;
+  GtkWidget *mainbox;
+} gui_t;
+
+gui_t *gui;
+
+#endif /* HAVE_FE_H */
 
 /* EOF */

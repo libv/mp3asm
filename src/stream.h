@@ -24,6 +24,70 @@
 #ifndef HAVE_STREAM_H
 #define HAVE_STREAM_H
 
+#include <glib.h>
+
+/* block_t->type */
+#define PADDING 0x00
+#define HEADER 0x01
+#define SIDEINFO1 0x02
+#define SIDEINFO2 0x03
+#define DATA 0x04
+#define ID3V1 0x05
+#define ID3V2 0x06
+#define BAD 0xff
+
+typedef struct block_t
+{
+  unsigned char filenr;
+  long pos;
+  guint16 size;
+  unsigned char type;
+  void *data;
+} block_t;
+
+/* type = PADDING; no *data */
+
+/* type = HEADER */
+typedef struct header_t
+{
+  unsigned char kbps; /* multiply by 8 to get kbps*/
+  guint16 length; /* space from header to header */
+  unsigned char *head; /* actual header - first byte should be 0xff
+			    second byte = static stream info */
+  block_t *datap; /* place in data struct */
+} header_t;
+
+/* type = SIDEINFO1 */
+typedef struct info1_t
+{
+  guint16 backref; /* actual backref in the sideinfo */
+  guint16 dsize; /* actual size of the data */ 
+  guint16 gain[4]; /* global gain in info */
+  unsigned char *info; /* 17-32 bytes of sideinfo */
+} info1_t;
+
+/* type = SIDEINFO2 */
+typedef struct info2_t
+{
+  guint8 backref; /* actual backref in the sideinfo */
+  guint16 dsize; /* actual size of the data */ 
+  guint16 gain[2]; /* global gain in info */
+  unsigned char *info; /* 9-17 bytes of sideinfo */
+} info2_t;
+
+/* type = DATA */
+typedef struct data_t
+{
+  block_t *next;  /* place in data struct */
+  block_t *headp; /* place in data struct */
+} data_t;
+
+/* type = ID3V1 */
+typedef struct id3v1_t
+{
+  unsigned char tag[128];
+} id3v1_t;
+
 typedef struct stream_t
 {
   int maj_version;  /* 1, 2 */
@@ -39,12 +103,12 @@ typedef struct stream_t
   int private;
   int copyright;
   int original;
-  unsigned char *tag;
+  unsigned char head1;
   
   long count;
+  long framecount;
 
-  struct frame_t *first; /* pointer to first frame of the stream */
-  struct frame_t *last;
+  block_t **list; /* pointer to first frame of the stream */
 } stream_t;
 
 #endif /* HAVE_STREAM_H */
